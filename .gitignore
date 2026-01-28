@@ -1,2 +1,5 @@
 # nodejs文件
 node_modules/
+
+# 日志文件
+note.txt
