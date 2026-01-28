@@ -16,6 +16,15 @@ const imageDeveloperName = (image) => {
 const defaultVolumePath = (containerName) =>
   containerName ? `/srv/${containerName}/data` : "/srv/container/data";
 
+const colorPalette = [
+  "#c45a1a",
+  "#247c8a",
+  "#b63b29",
+  "#6d5a8d",
+  "#2f7d59",
+  "#b88b2c",
+];
+
 const deriveContainerName = (mode, image, currentValue) => {
   if (mode === "developer") {
     return imageDeveloperName(image);
@@ -33,6 +42,7 @@ const newService = (image) => {
     containerName,
     containerNameMode,
     serviceName: containerName,
+    color: "",
     restart: "unless-stopped",
     networkMode: "ports",
     ports: [
@@ -49,6 +59,7 @@ const newService = (image) => {
         kind: "bind",
         source: defaultVolumePath(containerName),
         target: "/data",
+        readOnly: false,
       },
     ],
     env: [],
@@ -61,6 +72,9 @@ const newService = (image) => {
       retries: 3,
       startPeriod: "10s",
     },
+    privileged: false,
+    userId: 0,
+    groupId: 0,
   };
 };
 
@@ -84,13 +98,25 @@ createApp({
     this.composeYaml = this.generateCompose();
   },
   methods: {
+    hasPort(service, port) {
+      return service.ports.some((item) => Number(item.host) === Number(port));
+    },
+    nextSequentialPort(service) {
+      for (let port = 3000; port <= 3100; port += 1) {
+        if (!this.hasPort(service, port)) return port;
+      }
+      return null;
+    },
     addImages() {
       const raw = this.imageInput
         .split(/[\n,]/)
         .map((item) => item.trim())
         .filter(Boolean);
-      raw.forEach((image) => {
-        this.services.push(newService(image));
+      raw.forEach((image, index) => {
+        const service = newService(image);
+        const paletteIndex = (this.services.length + index) % colorPalette.length;
+        service.color = colorPalette[paletteIndex];
+        this.services.push(service);
       });
       this.imageInput = "";
     },
@@ -129,6 +155,7 @@ createApp({
       });
     },
     addPresetPort(service, port) {
+      if (this.hasPort(service, port)) return;
       service.ports.push({
         id: crypto.randomUUID(),
         host: port,
@@ -146,6 +173,7 @@ createApp({
         kind: "bind",
         source: defaultVolumePath(service.containerName),
         target: "/data",
+        readOnly: false,
       });
     },
     removeVolume(service, idx) {
@@ -205,7 +233,10 @@ createApp({
         }
         if (service.networkMode === "bridge") {
           lines.push("    network_mode: bridge");
-        } else if (service.ports.length) {
+        } else if (service.networkMode === "host") {
+          lines.push("    network_mode: host");
+        }
+        if (service.networkMode !== "host" && service.ports.length) {
           lines.push("    ports:");
           service.ports.forEach((port) => {
             if (!port.host || !port.container) return;
@@ -217,13 +248,25 @@ createApp({
           lines.push("    volumes:");
           service.volumes.forEach((vol) => {
             if (!vol.source || !vol.target) return;
+            const mode = vol.readOnly ? ":ro" : "";
             if (vol.kind === "volume") {
               volumeNames.add(vol.source);
-              lines.push(`      - "${vol.source}:${vol.target}"`);
+              lines.push(`      - "${vol.source}:${vol.target}${mode}"`);
             } else {
-              lines.push(`      - "${vol.source}:${vol.target}"`);
+              lines.push(`      - "${vol.source}:${vol.target}${mode}"`);
             }
           });
+        }
+        if (service.privileged) {
+          lines.push("    privileged: true");
+        }
+        if (
+          service.userId !== null &&
+          service.userId !== undefined &&
+          service.groupId !== null &&
+          service.groupId !== undefined
+        ) {
+          lines.push(`    user: "${service.userId}:${service.groupId}"`);
         }
         const envPairs = service.env
           .map((env) => `${env.key}=${env.value}`)

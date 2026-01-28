@@ -243,6 +243,26 @@ textarea {
   cursor: pointer;
 }
 
+.chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.chip-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-right: 6px;
+}
+
 .service-card {
   border-radius: 20px;
   padding: 20px;
@@ -251,6 +271,7 @@ textarea {
   display: grid;
   gap: 18px;
   animation: fadeIn 0.4s ease;
+  border-left: 10px solid transparent;
 }
 
 .service-card__header {
@@ -259,6 +280,19 @@ textarea {
   gap: 12px;
   align-items: center;
   justify-content: space-between;
+}
+
+.service-card__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.color-tag {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
 }
 
 .grid {

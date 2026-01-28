@@ -63,10 +63,18 @@
           还没有服务，先在上方添加镜像。
         </div>
 
-        <div v-for="service in services" :key="service.id" class="service-card">
+        <div
+          v-for="service in services"
+          :key="service.id"
+          class="service-card"
+          :style="{ borderLeftColor: service.color }"
+        >
           <div class="service-card__header">
             <div>
-              <h3>{{ service.image }}</h3>
+              <div class="service-card__title">
+                <span class="color-tag" :style="{ background: service.color }"></span>
+                <h3>{{ service.image }}</h3>
+              </div>
               <p>服务名称：{{ service.serviceName || '待生成' }}</p>
             </div>
             <button class="button button--danger" @click="removeService(service.id)">
@@ -109,18 +117,55 @@
               <select v-model="service.networkMode">
                 <option value="ports">端口映射</option>
                 <option value="bridge">使用网桥（network_mode: bridge）</option>
+                <option value="host">使用宿主机网络（network_mode: host）</option>
               </select>
+            </div>
+            <div class="field">
+              <label>特权模式</label>
+              <select v-model="service.privileged">
+                <option :value="false">关闭</option>
+                <option :value="true">开启</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>用户 ID</label>
+              <input type="number" min="0" v-model.number="service.userId" />
+            </div>
+            <div class="field">
+              <label>组 ID</label>
+              <input type="number" min="0" v-model.number="service.groupId" />
             </div>
           </div>
 
-          <div class="subpanel" v-if="service.networkMode === 'ports'">
+          <div class="subpanel" v-if="service.networkMode !== 'host'">
             <div class="subpanel__header">
               <h4>端口映射</h4>
               <div class="actions">
-                <button class="chip" @click="addPresetPort(service, 80)">+80</button>
-                <button class="chip" @click="addPresetPort(service, 443)">+443</button>
-                <button class="chip" @click="addPresetPort(service, 3000)">+3000</button>
-                <button class="chip" @click="addPresetPort(service, 3001)">+3001</button>
+                <button
+                  class="chip"
+                  @click="addPresetPort(service, 80)"
+                  :disabled="hasPort(service, 80)"
+                >
+                  +80
+                </button>
+                <button
+                  class="chip"
+                  @click="addPresetPort(service, 443)"
+                  :disabled="hasPort(service, 443)"
+                >
+                  +443
+                </button>
+                <div class="chip-group">
+                  <span class="chip-label">连续端口</span>
+                  <button
+                    v-if="nextSequentialPort(service)"
+                    class="chip"
+                    @click="addPresetPort(service, nextSequentialPort(service))"
+                  >
+                    +{{ nextSequentialPort(service) }}
+                  </button>
+                  <span v-else class="chip-label">已到 3100</span>
+                </div>
               </div>
             </div>
             <div v-for="(port, idx) in service.ports" :key="port.id" class="grid grid--ports">
@@ -143,7 +188,13 @@
             </div>
             <button class="button button--ghost" @click="addPort(service)">添加端口</button>
             <p class="hint">可选范围推荐：80、443、3000-3100，也支持自定义。</p>
+            <p class="hint" v-if="service.networkMode === 'bridge' && !service.ports.length">
+              使用网桥时，需要有容器对外提供服务，请确保开放端口。
+            </p>
           </div>
+          <p class="hint" v-if="service.networkMode === 'host'">
+            使用宿主机网络时无需端口映射，容器将直接使用宿主机网络栈。
+          </p>
 
           <div class="subpanel">
             <div class="subpanel__header">
@@ -165,12 +216,20 @@
                 <label>容器目录</label>
                 <input v-model.trim="vol.target" />
               </div>
+              <div class="field">
+                <label>只读</label>
+                <select v-model="vol.readOnly">
+                  <option :value="false">否</option>
+                  <option :value="true">是</option>
+                </select>
+              </div>
               <button class="button button--ghost" @click="removeVolume(service, idx)">删除</button>
             </div>
             <button class="button button--ghost" @click="addVolume(service)">添加挂载</button>
             <p class="hint">
               推荐目录：/srv/{{ service.containerName || '容器名称' }}/data
             </p>
+            <p class="hint">不推荐使用挂载卷，优先考虑挂载目录。</p>
           </div>
 
           <div class="subpanel">
