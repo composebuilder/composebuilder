@@ -1,4 +1,4 @@
-# ComposeBuilder AI 指导文件
+﻿# ComposeBuilder AI 指导文件
 
 禁止对AGENT.md进行修改
 
