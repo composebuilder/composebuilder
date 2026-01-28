@@ -32,21 +32,6 @@
 
       <section class="panel panel--grid">
         <div class="panel__intro">
-          <h2>基础设置</h2>
-          <p>先给所有服务一个统一的“开发者名称”，作为默认容器名的前缀。</p>
-        </div>
-        <div class="field">
-          <label for="devName">开发者名称</label>
-          <input
-            id="devName"
-            v-model.trim="developerName"
-            placeholder="例如：huang 或 team-alpha"
-          />
-        </div>
-      </section>
-
-      <section class="panel panel--grid">
-        <div class="panel__intro">
           <h2>镜像输入</h2>
           <p>支持一行一个镜像名称，或用逗号分隔。添加后可逐个配置。</p>
         </div>
@@ -91,8 +76,20 @@
 
           <div class="grid">
             <div class="field">
+              <label>容器名称来源</label>
+              <select v-model="service.containerNameMode" @change="applyContainerNameMode(service)">
+                <option value="developer">镜像开发者</option>
+                <option value="image">镜像名称</option>
+                <option value="custom">自定义</option>
+              </select>
+            </div>
+            <div class="field">
               <label>容器名称</label>
-              <input v-model.trim="service.containerName" @input="syncServiceName(service)" />
+              <input
+                v-model.trim="service.containerName"
+                :disabled="service.containerNameMode !== 'custom'"
+                @input="syncServiceName(service)"
+              />
             </div>
             <div class="field">
               <label>服务名称（自动同步）</label>

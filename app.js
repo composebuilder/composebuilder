@@ -1,24 +1,38 @@
 const { createApp } = Vue;
 
-const slugify = (value) =>
-  value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+const imageBaseName = (image) => {
+  const noTag = image.split(":")[0];
+  const parts = noTag.split("/");
+  return parts[parts.length - 1] || noTag;
+};
+
+const imageDeveloperName = (image) => {
+  const noTag = image.split(":")[0];
+  const parts = noTag.split("/");
+  if (parts.length > 1 && parts[0]) return parts[0];
+  return imageBaseName(image);
+};
 
 const defaultVolumePath = (containerName) =>
   containerName ? `/srv/${containerName}/data` : "/srv/container/data";
 
-const newService = (image, developerName) => {
-  const baseName = developerName
-    ? `${developerName}-${image.split(":")[0]}`
-    : image.split(":")[0];
-  const containerName = slugify(baseName || image);
+const deriveContainerName = (mode, image, currentValue) => {
+  if (mode === "developer") {
+    return imageDeveloperName(image);
+  }
+  if (mode === "image") return imageBaseName(image);
+  return currentValue || imageBaseName(image);
+};
+
+const newService = (image) => {
+  const containerNameMode = "developer";
+  const containerName = deriveContainerName(containerNameMode, image, "");
   return {
     id: crypto.randomUUID(),
     image,
     containerName,
-    serviceName: slugify(containerName),
+    containerNameMode,
+    serviceName: containerName,
     restart: "unless-stopped",
     networkMode: "ports",
     ports: [
@@ -53,7 +67,6 @@ const newService = (image, developerName) => {
 createApp({
   data() {
     return {
-      developerName: "",
       imageInput: "",
       services: [],
       composeYaml: "",
@@ -66,20 +79,6 @@ createApp({
         this.composeYaml = this.generateCompose();
       },
     },
-    developerName() {
-      this.services.forEach((service) => {
-        if (service.containerName) return;
-        service.containerName = slugify(
-          `${this.developerName}-${service.image.split(":")[0]}`
-        );
-        this.syncServiceName(service);
-        service.volumes.forEach((vol) => {
-          if (vol.kind === "bind" && vol.source.startsWith("/srv/")) {
-            vol.source = defaultVolumePath(service.containerName);
-          }
-        });
-      });
-    },
   },
   mounted() {
     this.composeYaml = this.generateCompose();
@@ -91,7 +90,7 @@ createApp({
         .map((item) => item.trim())
         .filter(Boolean);
       raw.forEach((image) => {
-        this.services.push(newService(image, this.developerName));
+        this.services.push(newService(image));
       });
       this.imageInput = "";
     },
@@ -102,8 +101,24 @@ createApp({
     removeService(id) {
       this.services = this.services.filter((service) => service.id !== id);
     },
+    applyContainerNameMode(service) {
+      service.containerName = deriveContainerName(
+        service.containerNameMode,
+        service.image,
+        service.containerName
+      );
+      this.syncServiceName(service);
+      service.volumes.forEach((vol) => {
+        if (vol.kind === "bind" && vol.source.startsWith("/srv/")) {
+          vol.source = defaultVolumePath(service.containerName);
+        }
+        if (vol.kind === "volume" && (!vol.source || vol.source === imageBaseName(service.image))) {
+          vol.source = service.containerName;
+        }
+      });
+    },
     syncServiceName(service) {
-      service.serviceName = slugify(service.containerName || service.image);
+      service.serviceName = service.containerName || imageBaseName(service.image);
     },
     addPort(service) {
       service.ports.push({
@@ -141,7 +156,7 @@ createApp({
         volume.source = defaultVolumePath(service.containerName);
       }
       if (volume.kind === "volume") {
-        volume.source = service.containerName || "data-volume";
+        volume.source = service.containerName || imageBaseName(service.image);
       }
     },
     addEnv(service) {
@@ -179,7 +194,7 @@ createApp({
       const volumeNames = new Set();
 
       this.services.forEach((service) => {
-        const name = service.serviceName || slugify(service.containerName || service.image);
+        const name = service.serviceName || service.containerName || imageBaseName(service.image);
         lines.push(`  ${name}:`);
         lines.push(`    image: ${service.image}`);
         if (service.containerName) {
