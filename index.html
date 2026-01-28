@@ -67,6 +67,9 @@
           :key="service.id"
           class="service-card"
           :style="{ borderLeftColor: service.color }"
+          @mouseenter="setActiveService(service.id, $event)"
+          @mouseleave="clearActiveService(service.id)"
+          @focusin="setActiveService(service.id, $event)"
         >
           <div class="service-card__header">
             <div>
@@ -291,6 +294,17 @@
           </div>
         </div>
       </section>
+
+      <aside
+        class="floating-panel"
+        v-if="activeService"
+      >
+        <div class="floating-panel__inner">
+          <p class="floating-panel__label">正在编辑</p>
+          <h3>{{ activeService.image }}</h3>
+          <p>服务名称：{{ activeService.serviceName || '待生成' }}</p>
+        </div>
+      </aside>
 
       <section class="panel panel--wide">
         <div class="panel__intro">

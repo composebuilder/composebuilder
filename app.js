@@ -84,7 +84,13 @@ createApp({
       imageInput: "",
       services: [],
       composeYaml: "",
+      activeServiceId: null,
     };
+  },
+  computed: {
+    activeService() {
+      return this.services.find((service) => service.id === this.activeServiceId) || null;
+    },
   },
   watch: {
     services: {
@@ -126,6 +132,17 @@ createApp({
     },
     removeService(id) {
       this.services = this.services.filter((service) => service.id !== id);
+      if (this.activeServiceId === id) {
+        this.activeServiceId = null;
+      }
+    },
+    setActiveService(id, event) {
+      this.activeServiceId = id;
+    },
+    clearActiveService(id) {
+      if (this.activeServiceId === id) {
+        this.activeServiceId = null;
+      }
     },
     applyContainerNameMode(service) {
       service.containerName = deriveContainerName(
