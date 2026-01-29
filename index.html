@@ -365,11 +365,7 @@
           </section>
 
           <section class="panel panel--wide panel--compact editor-panel" v-if="activeService">
-            <div class="panel__intro">
-              <h2>正在编辑</h2>
-              <p>{{ activeService.image }}</p>
-            </div>
-            <p>服务名称：{{ activeService.serviceName || '待生成' }}</p>
+            <h3>正在编辑：{{ activeService.image }}</h3>
           </section>
         </div>
       </div>

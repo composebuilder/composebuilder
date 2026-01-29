@@ -192,7 +192,17 @@ body {
 
 .editor-panel {
   display: grid;
-  align-content: start;
+  align-content: center;
+  min-height: 0;
+  text-align: left;
+}
+
+.editor-panel .panel__intro {
+  margin-bottom: 6px;
+}
+
+.editor-panel p {
+  margin: 0;
 }
 
 .panel__intro h2 {
@@ -457,6 +467,24 @@ textarea {
 
 .panel--compact {
   padding: 16px;
+}
+
+.editor-panel .panel__intro h2 {
+  font-size: 1.1rem;
+}
+
+.editor-panel .panel__intro p {
+  font-size: 0.85rem;
+}
+
+.editor-panel p {
+  font-size: 0.9rem;
+}
+
+.editor-panel h3 {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 1.1rem;
 }
 
 @keyframes fadeIn {
