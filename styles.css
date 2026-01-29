@@ -462,6 +462,8 @@ textarea {
   padding: 0;
   resize: vertical;
   overflow: auto;
+  white-space: pre;
+  overflow-wrap: normal;
 }
 
 .footer {
