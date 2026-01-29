@@ -1,26 +1,29 @@
 # ComposeBuilder
 
-ComposeBuilder 是一个用于快速生成 `docker-compose.yml` 的前端工具。它提供图形化流程，帮助用户为多个镜像逐项配置容器名称、重启策略、端口映射或网桥、挂载卷/目录、环境变量与健康检查。
+ComposeBuilder 是一个用于快速生成 docker-compose.yml 的工具。它提供图形化流程，帮助用户为多个镜像逐项配置容器名称、重启策略、端口映射或网桥、挂载卷/目录、环境变量与健康检查。
 
 ## 使用方式
 
-1. 直接打开 `index.html` 即可使用（纯前端）。
-2. 推荐在浏览器中配置完成后复制或下载 `docker-compose.yml`。
+> [!TIP]
+> 推荐使用Docker Compose运行本软件
 
-## 镜像发布约定
+1. 使用下述的Docker Compose或Docker run方式运行本工具
+2. 访问 <http://localhost> 使用本工具
 
-最终应用可打包为 `composebuilder/composebuilder` 并暴露 80 端口。
+### Docker Compose
 
-## 主要功能
+```yml
+services:
+  composebuilder:
+    image: composebuilder/composebuilder:latest
+    container_name: composebuilder
+    restart: no
+    ports:
+      - 80:80
+```
 
-- 输入一个或多个镜像名称并逐个配置
-- 容器名称与服务名称自动同步
-- 端口映射/网桥二选一
-- 支持卷/目录挂载与环境变量编辑
-- 内置常见健康检查模板
+### Docker
 
-## 目录结构
-
-- `index.html` - 应用入口
-- `app.js` - Vue 逻辑
-- `styles.css` - 视觉样式
+```shell
+docker run --name composebuilder --restart no -p 80:80 composebuilder/composebuilder:latest
+```
