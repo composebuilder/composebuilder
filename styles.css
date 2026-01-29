@@ -32,6 +32,10 @@ body {
   font-family: var(--font-body);
 }
 
+a {
+  text-underline-offset: 3px;
+}
+
 .app {
   max-width: 1200px;
   margin: 0 auto;
