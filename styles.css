@@ -156,6 +156,8 @@ body {
 .layout__left {
   position: relative;
   z-index: 2;
+  display: grid;
+  gap: 24px;
 }
 
 .layout__right {
