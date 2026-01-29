@@ -1,10 +1,7 @@
 services:
   composebuilder:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: composebuilder/composebuilder:latest
     container_name: composebuilder
-    restart: no
+    restart: always
     ports:
       - 3000:80

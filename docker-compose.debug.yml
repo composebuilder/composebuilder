@@ -1,0 +1,10 @@
+services:
+  composebuilder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: composebuilder/composebuilder:latest
+    container_name: composebuilder
+    restart: no
+    ports:
+      - 80:80
