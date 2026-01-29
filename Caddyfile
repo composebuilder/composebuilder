@@ -1,5 +1,7 @@
-:3000 {
+:80 {
 	root * /app
-	index index.html
-	file_server
+
+	file_server {
+		index index.html
+	}
 }
