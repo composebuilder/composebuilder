@@ -382,9 +382,9 @@
               :ref="setActiveImageRef"
             >
               <span v-if="activeImageOverflow">
-                正在编辑：{{ activeService.image }} · 正在编辑：{{ activeService.image }}
+                正在编辑：{{ activeService.serviceName || '待生成' }} · 正在编辑：{{ activeService.serviceName || '待生成' }}
               </span>
-              <span v-else>正在编辑：{{ activeService.image }}</span>
+              <span v-else>正在编辑：{{ activeService.serviceName || '待生成' }}</span>
             </h3>
           </section>
         </div>
