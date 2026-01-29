@@ -1,8 +1,14 @@
 # ComposeBuilder
 
+## 一、软件介绍
+
 ComposeBuilder 是一个用于快速生成 docker-compose.yml 的工具。它提供图形化流程，帮助用户为多个镜像逐项配置容器名称、重启策略、端口映射或网桥、挂载卷/目录、环境变量与健康检查。
 
-## 使用方式
+## 二、使用方式
+
+打开 <https://composebuilder.blazesnow.com> 使用本工具
+
+## 三、本地部署
 
 > [!TIP]
 > 推荐使用Docker Compose运行本软件
