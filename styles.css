@@ -434,13 +434,18 @@ textarea {
   user-select: none;
   text-align: right;
   color: rgba(245, 233, 218, 0.5);
-  font-size: 0.85rem;
+  font-size: inherit;
+  line-height: 1.5;
   overflow: hidden;
 }
 
 .line-numbers span {
   display: block;
   line-height: 1.5;
+}
+
+.line-numbers__inner {
+  will-change: transform;
 }
 
 .compose-output textarea {

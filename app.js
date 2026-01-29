@@ -90,6 +90,7 @@ createApp({
       composeYamlText: "",
       yamlDirty: false,
       lineNumberStyle: {},
+      lineScrollTop: 0,
     };
   },
   computed: {
@@ -396,9 +397,7 @@ createApp({
       this.$nextTick(() => this.updateLineNumberSize());
     },
     syncLineScroll(event) {
-      const list = this.$refs.lineNumbers;
-      if (!list) return;
-      list.scrollTop = event.target.scrollTop;
+      this.lineScrollTop = event.target.scrollTop;
     },
     updateLineNumberSize() {
       const area = this.$refs.yamlArea;

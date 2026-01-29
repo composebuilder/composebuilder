@@ -344,7 +344,9 @@
             <div class="compose-output">
               <div class="compose-editor">
                 <div class="line-numbers" ref="lineNumbers" :style="lineNumberStyle">
-                  <span v-for="line in lineNumbers" :key="line">{{ line }}</span>
+                  <div class="line-numbers__inner" :style="{ transform: `translateY(-${lineScrollTop}px)` }">
+                    <span v-for="line in lineNumbers" :key="line">{{ line }}</span>
+                  </div>
                 </div>
                 <textarea
                   ref="yamlArea"
