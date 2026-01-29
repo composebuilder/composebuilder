@@ -466,7 +466,7 @@ textarea {
   background: #191613;
   color: #f5e9da;
   border-radius: 18px;
-  padding: 18px;
+  padding: 18px 18px 18px 8px;
   overflow-x: auto;
   font-family: "JetBrains Mono", "Courier New", monospace;
   font-size: 0.9rem;
@@ -474,8 +474,8 @@ textarea {
 
 .compose-editor {
   display: grid;
-  grid-template-columns: 48px 1fr;
-  gap: 12px;
+  grid-template-columns: 42px 1fr;
+  gap: 10px;
   align-items: start;
 }
 
@@ -486,6 +486,7 @@ textarea {
   font-size: inherit;
   line-height: 1.5;
   overflow: hidden;
+  padding-left: 0;
 }
 
 .line-numbers span {
