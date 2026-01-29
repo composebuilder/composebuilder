@@ -1,7 +1,0 @@
-{
-  "name": "composebuilder",
-  "private": true,
-  "dependencies": {
-    "vue": "^3.5.27"
-  }
-}
