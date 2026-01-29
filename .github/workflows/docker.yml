@@ -9,7 +9,7 @@ on:
         default: 'v2026.1.29.1'
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
