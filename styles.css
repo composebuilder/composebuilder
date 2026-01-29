@@ -346,6 +346,7 @@ textarea {
   gap: 18px;
   animation: fadeIn 0.4s ease;
   border-left: 10px solid transparent;
+  min-width: 0;
 }
 
 .service-card__header {
@@ -354,12 +355,18 @@ textarea {
   gap: 12px;
   align-items: center;
   justify-content: space-between;
+  min-width: 0;
+}
+
+.service-card__header > div {
+  min-width: 0;
 }
 
 .service-card__title {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 
 .color-tag {
@@ -367,6 +374,39 @@ textarea {
   height: 14px;
   border-radius: 4px;
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
+}
+
+.image-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: thin;
+  min-width: 0;
+}
+
+.image-scroll--auto {
+  overflow: hidden;
+  position: relative;
+  min-width: 0;
+}
+
+.image-scroll--auto span {
+  display: inline-block;
+  padding-right: 32px;
+  animation: marquee 10s linear infinite;
+}
+
+.image-scroll--auto:hover span {
+  animation-play-state: paused;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
 }
 
 .grid {

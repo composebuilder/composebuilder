@@ -79,7 +79,14 @@
             <div>
               <div class="service-card__title">
                 <span class="color-tag" :style="{ background: service.color }"></span>
-                <h3>{{ service.image }}</h3>
+                <h3
+                  class="image-scroll"
+                  :class="{ 'image-scroll--auto': service.imageOverflow }"
+                  :ref="(el) => setImageRef(service.id, el)"
+                >
+                  <span v-if="service.imageOverflow">{{ service.image }} · {{ service.image }}</span>
+                  <span v-else>{{ service.image }}</span>
+                </h3>
               </div>
               <p>服务名称：{{ service.serviceName || '待生成' }}</p>
             </div>
@@ -368,7 +375,16 @@
           </section>
 
           <section class="panel panel--wide panel--compact editor-panel" v-if="activeService">
-            <h3>正在编辑：{{ activeService.image }}</h3>
+            <h3
+              class="image-scroll"
+              :class="{ 'image-scroll--auto': activeImageOverflow }"
+              :ref="setActiveImageRef"
+            >
+              <span v-if="activeImageOverflow">
+                正在编辑：{{ activeService.image }} · 正在编辑：{{ activeService.image }}
+              </span>
+              <span v-else>正在编辑：{{ activeService.image }}</span>
+            </h3>
           </section>
         </div>
       </div>

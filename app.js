@@ -9,7 +9,13 @@ const imageBaseName = (image) => {
 const imageDeveloperName = (image) => {
   const noTag = image.split(":")[0];
   const parts = noTag.split("/");
-  if (parts.length > 1 && parts[0]) return parts[0];
+  if (parts.length > 1) {
+    const first = parts[0];
+    const hasRegistry =
+      first.includes(".") || first.includes(":") || first === "localhost";
+    if (hasRegistry && parts[1]) return parts[1];
+    if (!hasRegistry && first) return first;
+  }
   return imageBaseName(image);
 };
 
@@ -91,6 +97,9 @@ createApp({
       yamlDirty: false,
       lineNumberStyle: {},
       lineScrollTop: 0,
+      imageRefs: {},
+      activeImageRef: null,
+      activeImageOverflow: false,
     };
   },
   computed: {
@@ -110,6 +119,7 @@ createApp({
         if (!this.yamlDirty) {
           this.composeYamlText = this.composeYaml;
         }
+        this.$nextTick(() => this.updateImageOverflow());
       },
     },
   },
@@ -118,9 +128,11 @@ createApp({
     this.composeYamlText = this.composeYaml;
     this.$nextTick(() => this.updateLineNumberSize());
     window.addEventListener("resize", this.updateLineNumberSize);
+    window.addEventListener("resize", this.updateImageOverflow);
   },
   beforeUnmount() {
     window.removeEventListener("resize", this.updateLineNumberSize);
+    window.removeEventListener("resize", this.updateImageOverflow);
   },
   methods: {
     hasPort(service, port) {
@@ -141,9 +153,11 @@ createApp({
         const service = newService(image);
         const paletteIndex = (this.services.length + index) % colorPalette.length;
         service.color = colorPalette[paletteIndex];
+        service.imageOverflow = false;
         this.services.push(service);
       });
       this.imageInput = "";
+      this.$nextTick(() => this.updateImageOverflow());
     },
     clearAll() {
       this.services = [];
@@ -155,6 +169,30 @@ createApp({
       this.services = this.services.filter((service) => service.id !== id);
       if (this.activeServiceId === id) {
         this.activeServiceId = null;
+      }
+      delete this.imageRefs[id];
+    },
+    setImageRef(id, el) {
+      if (el) {
+        this.imageRefs[id] = el;
+      } else {
+        delete this.imageRefs[id];
+      }
+    },
+    setActiveImageRef(el) {
+      this.activeImageRef = el;
+    },
+    updateImageOverflow() {
+      this.services.forEach((service) => {
+        const el = this.imageRefs[service.id];
+        if (!el) return;
+        service.imageOverflow = el.scrollWidth > el.clientWidth;
+      });
+      if (this.activeImageRef) {
+        this.activeImageOverflow =
+          this.activeImageRef.scrollWidth > this.activeImageRef.clientWidth;
+      } else {
+        this.activeImageOverflow = false;
       }
     },
     setActiveService(id) {
@@ -383,6 +421,7 @@ createApp({
         this.yamlDirty = false;
         this.composeYaml = this.generateCompose();
         this.composeYamlText = this.composeYaml;
+        this.$nextTick(() => this.updateImageOverflow());
       } catch (error) {
         console.error(error);
         alert("导入失败，请检查 YAML 格式是否正确。");
