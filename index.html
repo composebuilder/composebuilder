@@ -6,6 +6,7 @@
     <title>ComposeBuilder - 可视化生成 docker-compose.yml</title>
     <link rel="stylesheet" href="styles.css" />
     <script src="https://unpkg.com/vue@3.4.31/dist/vue.global.prod.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js" defer></script>
     <script src="app.js" defer></script>
   </head>
   <body>
@@ -29,6 +30,8 @@
         </div>
       </header>
 
+      <div class="layout">
+        <div class="layout__left">
       <section class="panel panel--grid">
         <div class="panel__intro">
           <h2>镜像输入</h2>
@@ -42,6 +45,7 @@
             placeholder="例如：nginx:latest, redis:7 或 mysql:8"
           ></textarea>
         </div>
+        <p class="hint">需要导入现有配置时，请在底部直接编辑 YAML 并点击导入。</p>
         <div class="actions">
           <button class="button button--primary" @click="addImages">
             添加镜像
@@ -254,6 +258,31 @@
 
           <div class="subpanel">
             <div class="subpanel__header">
+              <h4>服务依赖</h4>
+            </div>
+            <div class="field">
+              <label>depends_on</label>
+              <input
+                v-model.trim="service.dependsOnText"
+                placeholder="例如：db, redis"
+              />
+            </div>
+            <p class="hint">多个服务用逗号分隔。</p>
+          </div>
+
+          <div class="subpanel">
+            <div class="subpanel__header">
+              <h4>启动命令</h4>
+            </div>
+            <div class="field">
+              <label>command</label>
+              <input v-model.trim="service.command" placeholder="例如：nginx -g 'daemon off;'" />
+            </div>
+            <p class="hint">command 可为空，将不写入配置。</p>
+          </div>
+
+          <div class="subpanel">
+            <div class="subpanel__header">
               <h4>健康检查</h4>
             </div>
             <div class="grid">
@@ -294,6 +323,28 @@
           </div>
         </div>
       </section>
+        </div>
+
+        <div class="layout__right">
+          <section class="panel panel--wide">
+            <div class="panel__intro">
+              <h2>YAML 展示区</h2>
+              <p>右侧可直接编辑，点击刷新后同步到左侧。</p>
+            </div>
+            <div class="compose-output">
+              <textarea v-model="composeYamlText" @input="markYamlDirty"></textarea>
+            </div>
+            <div class="actions">
+              <button class="button button--primary" @click="importFromYamlText" :disabled="!composeYamlText">
+                刷新
+              </button>
+              <button class="button button--ghost" @click="downloadYaml" :disabled="!composeYamlText">
+                下载 YAML
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
 
       <aside
         class="floating-panel"
@@ -305,24 +356,6 @@
           <p>服务名称：{{ activeService.serviceName || '待生成' }}</p>
         </div>
       </aside>
-
-      <section class="panel panel--wide">
-        <div class="panel__intro">
-          <h2>生成结果</h2>
-          <p>下面是合并后的 docker-compose.yml，可直接复制或下载。</p>
-        </div>
-        <div class="compose-output">
-          <pre>{{ composeYaml }}</pre>
-        </div>
-        <div class="actions">
-          <button class="button button--primary" @click="copyYaml" :disabled="!composeYaml">
-            复制到剪贴板
-          </button>
-          <button class="button button--ghost" @click="downloadYaml" :disabled="!composeYaml">
-            下载 docker-compose.yml
-          </button>
-        </div>
-      </section>
 
       <footer class="footer">
         <p>ComposeBuilder - 让 compose 配置更直观。</p>

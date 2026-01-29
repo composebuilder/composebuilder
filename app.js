@@ -63,6 +63,8 @@ const newService = (image) => {
       },
     ],
     env: [],
+    dependsOnText: "",
+    command: "",
     health: {
       type: "none",
       port: 80,
@@ -85,6 +87,8 @@ createApp({
       services: [],
       composeYaml: "",
       activeServiceId: null,
+      composeYamlText: "",
+      yamlDirty: false,
     };
   },
   computed: {
@@ -97,11 +101,15 @@ createApp({
       deep: true,
       handler() {
         this.composeYaml = this.generateCompose();
+        if (!this.yamlDirty) {
+          this.composeYamlText = this.composeYaml;
+        }
       },
     },
   },
   mounted() {
     this.composeYaml = this.generateCompose();
+    this.composeYamlText = this.composeYaml;
   },
   methods: {
     hasPort(service, port) {
@@ -129,6 +137,8 @@ createApp({
     clearAll() {
       this.services = [];
       this.composeYaml = "";
+      this.composeYamlText = "";
+      this.yamlDirty = false;
     },
     removeService(id) {
       this.services = this.services.filter((service) => service.id !== id);
@@ -136,7 +146,7 @@ createApp({
         this.activeServiceId = null;
       }
     },
-    setActiveService(id, event) {
+    setActiveService(id) {
       this.activeServiceId = id;
     },
     clearActiveService(id) {
@@ -214,6 +224,154 @@ createApp({
     removeEnv(service, idx) {
       service.env.splice(idx, 1);
     },
+    parsePortMapping(mapping) {
+      const [mappingPart, protocolPart] = mapping.split("/");
+      const protocol = protocolPart || "tcp";
+      const parts = mappingPart.split(":");
+      let host = "";
+      let container = "";
+      if (parts.length >= 2) {
+        container = parts[parts.length - 1];
+        host = parts[parts.length - 2];
+      } else if (parts.length === 1) {
+        host = parts[0];
+        container = parts[0];
+      }
+      return {
+        id: crypto.randomUUID(),
+        host: Number(host) || host,
+        container: Number(container) || container,
+        protocol,
+      };
+    },
+    parseVolumeMapping(mapping, fallbackName) {
+      const parts = mapping.split(":");
+      const readOnly = parts[parts.length - 1] === "ro";
+      if (readOnly) parts.pop();
+      let source = "";
+      let target = "";
+      if (parts.length >= 2) {
+        source = parts[0];
+        target = parts[1];
+      } else if (parts.length === 1) {
+        target = parts[0];
+        source = `${fallbackName}-data`;
+      }
+      const isBind =
+        source.startsWith("/") ||
+        source.startsWith("./") ||
+        source.startsWith("../") ||
+        source.startsWith("~");
+      return {
+        id: crypto.randomUUID(),
+        kind: isBind ? "bind" : "volume",
+        source,
+        target,
+        readOnly,
+      };
+    },
+    parseHealthcheck(health) {
+      if (!health || !health.test) return null;
+      let cmd = "";
+      if (Array.isArray(health.test)) {
+        if (health.test[0] === "CMD-SHELL") {
+          cmd = health.test[1] || "";
+        } else {
+          cmd = health.test.slice(1).join(" ");
+        }
+      } else if (typeof health.test === "string") {
+        cmd = health.test;
+      }
+      const httpMatch = cmd.match(/curl\s+-f\s+http:\/\/localhost:(\d+)/i);
+      const tcpMatch = cmd.match(/nc\s+-z\s+localhost\s+(\d+)/i);
+      const type = httpMatch ? "http" : tcpMatch ? "tcp" : "cmd";
+      return {
+        type,
+        port: Number(httpMatch?.[1] || tcpMatch?.[1] || 80),
+        cmd,
+        interval: health.interval || "30s",
+        timeout: health.timeout || "5s",
+        retries: Number(health.retries) || 3,
+        startPeriod: health.start_period || "10s",
+      };
+    },
+    parseDependsOn(dependsOn) {
+      if (Array.isArray(dependsOn)) return dependsOn;
+      if (dependsOn && typeof dependsOn === "object") return Object.keys(dependsOn);
+      return [];
+    },
+    applyImportedServices(doc) {
+      const services = doc?.services || {};
+      const entries = Object.entries(services);
+      const nextServices = [];
+      entries.forEach(([serviceName, svc], index) => {
+        const image = svc.image || "";
+        const containerName = svc.container_name || serviceName || imageBaseName(image);
+        const service = newService(image);
+        service.containerNameMode = "custom";
+        service.containerName = containerName;
+        service.serviceName = containerName;
+        service.color = colorPalette[index % colorPalette.length];
+        service.restart = svc.restart || "no";
+        service.networkMode = svc.network_mode || "ports";
+        service.ports = Array.isArray(svc.ports)
+          ? svc.ports.map((p) => this.parsePortMapping(String(p)))
+          : [];
+        service.volumes = Array.isArray(svc.volumes)
+          ? svc.volumes.map((v) => this.parseVolumeMapping(String(v), containerName))
+          : [];
+        const envList = [];
+        if (Array.isArray(svc.environment)) {
+          svc.environment.forEach((item) => {
+            const [key, value = ""] = String(item).split("=");
+            envList.push({ id: crypto.randomUUID(), key, value });
+          });
+        } else if (svc.environment && typeof svc.environment === "object") {
+          Object.entries(svc.environment).forEach(([key, value]) => {
+            envList.push({ id: crypto.randomUUID(), key, value: String(value) });
+          });
+        }
+        service.env = envList;
+        const parsedHealth = this.parseHealthcheck(svc.healthcheck);
+        if (parsedHealth) {
+          service.health = parsedHealth;
+        }
+        service.privileged = Boolean(svc.privileged);
+        if (typeof svc.user === "string" && svc.user.includes(":")) {
+          const [uid, gid] = svc.user.split(":");
+          service.userId = Number(uid) || 0;
+          service.groupId = Number(gid) || 0;
+        } else if (typeof svc.user === "number") {
+          service.userId = svc.user;
+          service.groupId = 0;
+        }
+        service.command = svc.command ? String(svc.command) : "";
+        const dependsOn = this.parseDependsOn(svc.depends_on);
+        service.dependsOnText = dependsOn.join(", ");
+        nextServices.push(service);
+      });
+      this.services = nextServices;
+    },
+    importFromYamlText() {
+      if (!this.composeYamlText.trim()) return;
+      try {
+        const doc = jsyaml.load(this.composeYamlText);
+        this.applyImportedServices(doc);
+        this.yamlDirty = false;
+        this.composeYaml = this.generateCompose();
+        this.composeYamlText = this.composeYaml;
+      } catch (error) {
+        console.error(error);
+        alert("导入失败，请检查 YAML 格式是否正确。");
+      }
+    },
+    resetYamlText() {
+      this.composeYamlText = this.composeYaml;
+      this.yamlDirty = false;
+    },
+    markYamlDirty() {
+      this.yamlDirty = true;
+    },
     buildHealthcheck(service) {
       const health = service.health;
       if (health.type === "none") return null;
@@ -274,6 +432,19 @@ createApp({
             }
           });
         }
+        if (service.dependsOnText && service.dependsOnText.trim()) {
+          const deps = service.dependsOnText
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean);
+          if (deps.length) {
+            lines.push("    depends_on:");
+            deps.forEach((dep) => lines.push(`      - ${dep}`));
+          }
+        }
+        if (service.command && service.command.trim()) {
+          lines.push(`    command: ${service.command.trim()}`);
+        }
         if (service.privileged) {
           lines.push("    privileged: true");
         }
@@ -313,12 +484,12 @@ createApp({
       return lines.join("\n");
     },
     async copyYaml() {
-      if (!this.composeYaml) return;
-      await navigator.clipboard.writeText(this.composeYaml);
+      if (!this.composeYamlText) return;
+      await navigator.clipboard.writeText(this.composeYamlText);
     },
     downloadYaml() {
-      if (!this.composeYaml) return;
-      const blob = new Blob([this.composeYaml], { type: "text/yaml" });
+      if (!this.composeYamlText) return;
+      const blob = new Blob([this.composeYamlText], { type: "text/yaml" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;

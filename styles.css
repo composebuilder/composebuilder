@@ -145,6 +145,25 @@ body {
   grid-template-columns: 1fr;
 }
 
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.7fr);
+  gap: 24px;
+  align-items: start;
+  position: relative;
+}
+
+.layout__left {
+  position: relative;
+  z-index: 2;
+}
+
+.layout__right {
+  position: sticky;
+  top: 24px;
+  z-index: 1;
+}
+
 .panel__intro h2 {
   margin: 0 0 6px;
   font-family: var(--font-title);
@@ -350,9 +369,16 @@ textarea {
   font-size: 0.9rem;
 }
 
-.compose-output pre {
-  margin: 0;
-  white-space: pre-wrap;
+.compose-output textarea {
+  width: 100%;
+  min-height: 220px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  resize: vertical;
 }
 
 .footer {
@@ -416,5 +442,13 @@ textarea {
 
   .panel {
     padding: 20px;
+  }
+
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .layout__right {
+    position: static;
   }
 }
