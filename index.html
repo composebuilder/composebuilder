@@ -336,13 +336,23 @@
         </div>
 
         <div class="layout__right">
-          <section class="panel panel--wide">
+          <section class="panel panel--wide yaml-panel">
             <div class="panel__intro">
               <h2>YAML 展示区</h2>
               <p>右侧可直接编辑，点击刷新后同步到左侧。</p>
             </div>
             <div class="compose-output">
-              <textarea v-model="composeYamlText" @input="markYamlDirty"></textarea>
+              <div class="compose-editor">
+                <div class="line-numbers" ref="lineNumbers" :style="lineNumberStyle">
+                  <span v-for="line in lineNumbers" :key="line">{{ line }}</span>
+                </div>
+                <textarea
+                  ref="yamlArea"
+                  v-model="composeYamlText"
+                  @input="markYamlDirty"
+                  @scroll="syncLineScroll"
+                ></textarea>
+              </div>
             </div>
             <div class="actions">
               <button class="button button--primary" @click="importFromYamlText" :disabled="!composeYamlText">
@@ -353,19 +363,16 @@
               </button>
             </div>
           </section>
+
+          <section class="panel panel--wide panel--compact editor-panel" v-if="activeService">
+            <div class="panel__intro">
+              <h2>正在编辑</h2>
+              <p>{{ activeService.image }}</p>
+            </div>
+            <p>服务名称：{{ activeService.serviceName || '待生成' }}</p>
+          </section>
         </div>
       </div>
-
-      <aside
-        class="floating-panel"
-        v-if="activeService"
-      >
-        <div class="floating-panel__inner">
-          <p class="floating-panel__label">正在编辑</p>
-          <h3>{{ activeService.image }}</h3>
-          <p>服务名称：{{ activeService.serviceName || '待生成' }}</p>
-        </div>
-      </aside>
 
       <footer class="footer">
         <p>ComposeBuilder - 让 compose 配置更直观。</p>

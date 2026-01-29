@@ -162,6 +162,35 @@ body {
   position: sticky;
   top: 24px;
   z-index: 1;
+  display: grid;
+  gap: 24px;
+  height: calc(100vh - 48px);
+  grid-template-rows: 9fr 1fr;
+}
+
+.yaml-panel {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+}
+
+.yaml-panel .compose-output {
+  height: 100%;
+  overflow: hidden;
+}
+
+.yaml-panel .compose-editor {
+  height: 100%;
+}
+
+.yaml-panel textarea {
+  height: 100%;
+  max-height: none;
+}
+
+.editor-panel {
+  display: grid;
+  align-content: start;
 }
 
 .panel__intro h2 {
@@ -382,16 +411,40 @@ textarea {
   font-size: 0.9rem;
 }
 
+.compose-editor {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.line-numbers {
+  user-select: none;
+  text-align: right;
+  color: rgba(245, 233, 218, 0.5);
+  font-size: 0.85rem;
+  overflow: hidden;
+}
+
+.line-numbers span {
+  display: block;
+  line-height: 1.5;
+}
+
 .compose-output textarea {
   width: 100%;
   min-height: 220px;
+  max-height: 360px;
   border: none;
   outline: none;
   background: transparent;
   color: inherit;
   font-family: inherit;
   font-size: inherit;
+  line-height: 1.5;
+  padding: 0;
   resize: vertical;
+  overflow: auto;
 }
 
 .footer {
@@ -400,41 +453,8 @@ textarea {
   font-size: 0.85rem;
 }
 
-.floating-panel {
-  position: fixed;
-  max-width: 280px;
-  z-index: 50;
-  pointer-events: none;
-  right: 24px;
-  bottom: 24px;
-}
-
-.floating-panel__inner {
-  background: #1c1712;
-  color: #f5e9da;
-  border-radius: 18px;
+.panel--compact {
   padding: 16px;
-  box-shadow: var(--shadow);
-  border: 1px solid rgba(245, 233, 218, 0.15);
-}
-
-.floating-panel__label {
-  margin: 0 0 6px;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  color: rgba(245, 233, 218, 0.65);
-}
-
-.floating-panel h3 {
-  margin: 0 0 6px;
-  font-size: 1rem;
-  word-break: break-all;
-}
-
-.floating-panel p {
-  margin: 0;
-  color: rgba(245, 233, 218, 0.8);
 }
 
 @keyframes fadeIn {

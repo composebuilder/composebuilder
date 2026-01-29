@@ -89,11 +89,16 @@ createApp({
       activeServiceId: null,
       composeYamlText: "",
       yamlDirty: false,
+      lineNumberStyle: {},
     };
   },
   computed: {
     activeService() {
       return this.services.find((service) => service.id === this.activeServiceId) || null;
+    },
+    lineNumbers() {
+      const lines = this.composeYamlText ? this.composeYamlText.split("\n").length : 1;
+      return Array.from({ length: lines }, (_, idx) => idx + 1);
     },
   },
   watch: {
@@ -110,6 +115,11 @@ createApp({
   mounted() {
     this.composeYaml = this.generateCompose();
     this.composeYamlText = this.composeYaml;
+    this.$nextTick(() => this.updateLineNumberSize());
+    window.addEventListener("resize", this.updateLineNumberSize);
+  },
+  beforeUnmount() {
+    window.removeEventListener("resize", this.updateLineNumberSize);
   },
   methods: {
     hasPort(service, port) {
@@ -383,6 +393,18 @@ createApp({
     },
     markYamlDirty() {
       this.yamlDirty = true;
+      this.$nextTick(() => this.updateLineNumberSize());
+    },
+    syncLineScroll(event) {
+      const list = this.$refs.lineNumbers;
+      if (!list) return;
+      list.scrollTop = event.target.scrollTop;
+    },
+    updateLineNumberSize() {
+      const area = this.$refs.yamlArea;
+      if (!area) return;
+      const height = `${area.clientHeight}px`;
+      this.lineNumberStyle = { height };
     },
     buildHealthcheck(service) {
       const health = service.health;
