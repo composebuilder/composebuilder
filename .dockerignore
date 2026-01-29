@@ -1,0 +1,16 @@
+# git文件
+.git
+.github/
+.gitignore
+README.md
+ReleaseBodyFile.md
+
+# nodejs文件
+node_modules/
+package-lock.json
+package.json
+.npmrc
+
+# 日志文件
+AGENT.md
+note.txt

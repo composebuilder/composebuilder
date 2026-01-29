@@ -1,0 +1,7 @@
+services:
+  composebuilder:
+    image: composebuilder/composebuilder:latest
+    container_name: composebuilder
+    restart: always
+    ports:
+      - 3000:80

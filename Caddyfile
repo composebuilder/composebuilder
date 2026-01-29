@@ -1,0 +1,7 @@
+:80 {
+	root * /app
+
+	file_server {
+		index index.html
+	}
+}
