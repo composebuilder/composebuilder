@@ -1,0 +1,64 @@
+name: Publish Docker Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '版本发布标签'
+        required: true
+        default: 'v2026.1.29.1'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+
+    - name: Login to Alibaba Cloud
+      uses: docker/login-action@v3
+      with:
+        registry: registry.cn-hangzhou.aliyuncs.com
+        username: BlazeSnow23
+        password: ${{ secrets.AlibabaTOKEN }}
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: blazesnow
+        password: ${{ secrets.TOKEN }}
+
+    - name: Login to GitHub
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build and push
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        push: true
+        tags: |
+          registry.cn-hangzhou.aliyuncs.com/blazesnow/composebuilder:latest
+          registry.cn-hangzhou.aliyuncs.com/blazesnow/composebuilder:${{ inputs.tag }}
+          composebuilder/composebuilder:latest
+          composebuilder/composebuilder:${{ inputs.tag }}
+          ghcr.io/composebuilder/composebuilder:latest
+          ghcr.io/composebuilder/composebuilder:${{ inputs.tag }}
+
+    - uses: ncipollo/release-action@v1
+      with:
+        tag: ${{ inputs.tag }}
+        bodyFile: ReleaseBodyFile.md
