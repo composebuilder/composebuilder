@@ -261,13 +261,23 @@
               <h4>服务依赖</h4>
             </div>
             <div class="field">
-              <label>depends_on</label>
-              <input
-                v-model.trim="service.dependsOnText"
-                placeholder="例如：db, redis"
-              />
+              <label>depends_on（仅显示已配置健康检查的服务）</label>
+              <div class="checkbox-list" v-if="availableDependsOn(service).length">
+                <label
+                  class="checkbox-item"
+                  v-for="dep in availableDependsOn(service)"
+                  :key="dep.id"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="service.dependsOn.includes(dep.serviceName || dep.containerName)"
+                    @change="toggleDependsOn(service, dep.serviceName || dep.containerName)"
+                  />
+                  <span>{{ dep.serviceName || dep.containerName }}</span>
+                </label>
+              </div>
+              <p class="hint" v-else>暂无已配置健康检查的服务可选。</p>
             </div>
-            <p class="hint">多个服务用逗号分隔。</p>
           </div>
 
           <div class="subpanel">

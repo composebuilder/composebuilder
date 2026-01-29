@@ -283,6 +283,19 @@ textarea {
   margin-right: 6px;
 }
 
+.checkbox-list {
+  display: grid;
+  gap: 8px;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
 .service-card {
   border-radius: 20px;
   padding: 20px;

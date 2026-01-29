@@ -63,7 +63,7 @@ const newService = (image) => {
       },
     ],
     env: [],
-    dependsOnText: "",
+    dependsOn: [],
     command: "",
     health: {
       type: "none",
@@ -172,6 +172,18 @@ createApp({
     },
     syncServiceName(service) {
       service.serviceName = service.containerName || imageBaseName(service.image);
+    },
+    availableDependsOn(service) {
+      return this.services.filter(
+        (item) => item.id !== service.id && item.health?.type && item.health.type !== "none"
+      );
+    },
+    toggleDependsOn(service, name) {
+      if (service.dependsOn.includes(name)) {
+        service.dependsOn = service.dependsOn.filter((item) => item !== name);
+      } else {
+        service.dependsOn = [...service.dependsOn, name];
+      }
     },
     addPort(service) {
       service.ports.push({
@@ -347,7 +359,7 @@ createApp({
         }
         service.command = svc.command ? String(svc.command) : "";
         const dependsOn = this.parseDependsOn(svc.depends_on);
-        service.dependsOnText = dependsOn.join(", ");
+        service.dependsOn = dependsOn;
         nextServices.push(service);
       });
       this.services = nextServices;
@@ -432,14 +444,14 @@ createApp({
             }
           });
         }
-        if (service.dependsOnText && service.dependsOnText.trim()) {
-          const deps = service.dependsOnText
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean);
-          if (deps.length) {
+        const deps = Array.isArray(service.dependsOn) ? service.dependsOn : [];
+        if (deps.length) {
+          const validDeps = deps.filter((dep) =>
+            this.services.some((svc) => (svc.serviceName || svc.containerName) === dep)
+          );
+          if (validDeps.length) {
             lines.push("    depends_on:");
-            deps.forEach((dep) => lines.push(`      - ${dep}`));
+            validDeps.forEach((dep) => lines.push(`      - ${dep}`));
           }
         }
         if (service.command && service.command.trim()) {
