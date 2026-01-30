@@ -10,13 +10,13 @@ ComposeBuilder 是一个用于快速生成 docker-compose.yml 的工具。它提
 
 ## 三、本地部署
 
-> [!TIP]
-> 推荐使用Docker Compose运行本软件
-
-1. 使用下述的Docker Compose或Docker run方式运行本工具
+1. 使用下述的 Docker Compose 或 Docker run 方式运行本工具
 2. 访问 <http://localhost> 使用本工具
 
 ### Docker Compose
+
+> [!TIP]
+> 推荐使用Docker Compose运行本软件
 
 ```yml
 services:
@@ -44,12 +44,3 @@ Copyright © 2026 BlazeSnow. 保留所有权利。
 
 - Caddy 遵守其原有的许可证
 - 所有未提及的第三方软件均遵守其原有的许可证
-
-## 五、相关链接
-
-- 官方网站：<https://composebuilder.blazesnow.com/>
-- 说明文档：<https://www.blazesnow.com/composebuilder>
-- DockerHub：<https://hub.docker.com/r/composebuilder/composebuilder>
-- 软件仓库：<https://github.com/composebuilder/composebuilder>
-- 许可证：<https://www.gnu.org/licenses/agpl-3.0.html>
-- 软件作者：<https://github.com/BlazeSnow>
