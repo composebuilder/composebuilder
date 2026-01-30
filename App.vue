@@ -543,6 +543,7 @@ export default {
     },
     setActiveImageRef(el) {
       this.activeImageRef = el;
+      this.$nextTick(() => this.updateImageOverflow());
     },
     updateImageOverflow() {
       this.services.forEach((service) => {
@@ -559,6 +560,7 @@ export default {
     },
     setActiveService(id) {
       this.activeServiceId = id;
+      this.$nextTick(() => this.updateImageOverflow());
     },
     clearActiveService(id) {
       if (this.activeServiceId === id) {
@@ -733,7 +735,7 @@ export default {
         const service = newService(image);
         service.containerNameMode = "custom";
         service.containerName = containerName;
-        service.serviceName = containerName;
+        service.serviceName = serviceName || containerName;
         service.color = colorPalette[index % colorPalette.length];
         service.restart = svc.restart || "no";
         service.networkMode = svc.network_mode || "ports";
