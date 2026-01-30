@@ -13,6 +13,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource/fraunces": "^5.2.9",
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@fontsource/space-grotesk": "^5.2.10",
     "@vitejs/plugin-vue": "^6.0.3",
     "js-yaml": "^4.1.1",
     "vite": "^7.3.1",
