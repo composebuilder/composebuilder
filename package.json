@@ -6,6 +6,7 @@
   },
   "type": "module",
   "private": true,
+  "main": "main.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
