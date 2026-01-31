@@ -1,7 +1,25 @@
 {
   "name": "composebuilder",
+  "author": {
+    "name": "BlazeSnow",
+    "email": "composebuilder@blazesnow.com"
+  },
+  "type": "module",
   "private": true,
+  "main": "main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
   "dependencies": {
+    "@fontsource/fraunces": "^5.2.9",
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@fontsource/space-grotesk": "^5.2.10",
+    "@vitejs/plugin-vue": "^6.0.3",
+    "js-yaml": "^4.1.1",
+    "vite": "^7.3.1",
+    "vite-plugin-vue-devtools": "^8.0.5",
     "vue": "^3.5.27"
   }
 }
