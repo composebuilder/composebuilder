@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="app">
     <header class="hero">
       <div class="hero__content">
