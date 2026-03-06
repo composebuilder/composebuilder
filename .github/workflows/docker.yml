@@ -6,7 +6,7 @@ on:
       tag:
         description: '版本发布标签'
         required: true
-        default: 'v2026.1.29.1'
+        default: 'v2026.3.6.0'
 
 permissions:
   contents: write
