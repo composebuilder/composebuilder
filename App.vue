@@ -119,11 +119,13 @@
               </div>
               <div class="field">
                 <label>用户 ID</label>
-                <input type="number" min="0" v-model.number="service.userId" @input="normalizeUserIds(service)" />
+                <input type="number" min="0" v-model.number="service.userId"
+                  @input="normalizeUserId(service, 'userId', $event)" />
               </div>
               <div class="field">
                 <label>组 ID</label>
-                <input type="number" min="0" v-model.number="service.groupId" @input="normalizeUserIds(service)" />
+                <input type="number" min="0" v-model.number="service.groupId"
+                  @input="normalizeUserId(service, 'groupId', $event)" />
               </div>
             </div>
 
@@ -586,13 +588,14 @@ export default {
     syncServiceName(service) {
       service.serviceName = service.containerName || imageBaseName(service.image);
     },
-    normalizeUserIds(service) {
-      if (service.userId === "" || Number.isNaN(service.userId)) {
-        service.userId = null;
+    normalizeUserId(service, key, event) {
+      const raw = event?.target?.value ?? "";
+      if (raw === "") {
+        service[key] = null;
+        return;
       }
-      if (service.groupId === "" || Number.isNaN(service.groupId)) {
-        service.groupId = null;
-      }
+      const parsed = Number(raw);
+      service[key] = Number.isFinite(parsed) ? parsed : null;
     },
     availableDependsOn(service) {
       return this.services.filter(
