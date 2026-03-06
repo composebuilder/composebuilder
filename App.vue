@@ -191,7 +191,7 @@
                 </div>
                 <div class="field">
                   <label>{{ vol.kind === 'bind' ? '宿主机目录' : '卷名称' }}</label>
-                  <input v-model.trim="vol.source" />
+                  <input v-model.trim="vol.source" @input="normalizeVolumeSource(vol, $event)" />
                 </div>
                 <div class="field">
                   <label>容器目录</label>
@@ -385,6 +385,13 @@ const imageDeveloperName = (image) => {
 
 const defaultVolumePath = (containerName) =>
   containerName ? `/srv/${containerName}/data` : "/srv/container/data";
+
+const normalizeWindowsPath = (value) => {
+  if (/^[A-Za-z]:[\\/]/.test(value)) {
+    return value.replace(/\\/g, "/");
+  }
+  return value;
+};
 
 const colorPalette = [
   "#c45a1a",
@@ -588,6 +595,10 @@ export default {
     syncServiceName(service) {
       service.serviceName = service.containerName || imageBaseName(service.image);
     },
+    normalizeVolumeSource(volume, event) {
+      const raw = event?.target?.value ?? volume.source ?? "";
+      volume.source = normalizeWindowsPath(raw);
+    },
     normalizeUserId(service, key, event) {
       const raw = event?.target?.value ?? "";
       if (raw === "") {
@@ -710,6 +721,7 @@ export default {
         readOnly = true;
         normalized = normalized.slice(0, -3);
       }
+      normalized = normalizeWindowsPath(normalized);
       let source = "";
       let target = "";
       if (/^[A-Za-z]:[\\/]/.test(normalized)) {
@@ -736,7 +748,8 @@ export default {
         source.startsWith("/") ||
         source.startsWith("./") ||
         source.startsWith("../") ||
-        source.startsWith("~");
+        source.startsWith("~") ||
+        /^[A-Za-z]:\//.test(source);
       return {
         id: crypto.randomUUID(),
         kind: isBind ? "bind" : "volume",
@@ -920,7 +933,8 @@ export default {
               volumeNames.add(vol.source);
               lines.push(`      - "${vol.source}:${vol.target}${mode}"`);
             } else {
-              lines.push(`      - "${vol.source}:${vol.target}${mode}"`);
+              const source = normalizeWindowsPath(vol.source);
+              lines.push(`      - "${source}:${vol.target}${mode}"`);
             }
           });
         }
