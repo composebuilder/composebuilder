@@ -443,8 +443,8 @@ const newService = (image) => {
       startPeriod: "10s",
     },
     privileged: false,
-    userId: 0,
-    groupId: 0,
+    userId: null,
+    groupId: null,
   };
 };
 
