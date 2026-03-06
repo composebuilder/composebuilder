@@ -601,6 +601,7 @@ export default {
     addPort(service) {
       service.ports.push({
         id: crypto.randomUUID(),
+        hostIp: "",
         host: 3000,
         container: 3000,
         protocol: "tcp",
@@ -610,6 +611,7 @@ export default {
       if (this.hasPort(service, port)) return;
       service.ports.push({
         id: crypto.randomUUID(),
+        hostIp: "",
         host: port,
         container: port,
         protocol: "tcp",
@@ -652,35 +654,72 @@ export default {
     parsePortMapping(mapping) {
       const [mappingPart, protocolPart] = mapping.split("/");
       const protocol = protocolPart || "tcp";
-      const parts = mappingPart.split(":");
+      let hostIp = "";
       let host = "";
       let container = "";
-      if (parts.length >= 2) {
-        container = parts[parts.length - 1];
-        host = parts[parts.length - 2];
-      } else if (parts.length === 1) {
-        host = parts[0];
-        container = parts[0];
+      if (mappingPart.startsWith("[")) {
+        const endBracket = mappingPart.indexOf("]");
+        if (endBracket > 0) {
+          hostIp = mappingPart.slice(1, endBracket);
+          const rest = mappingPart.slice(endBracket + 1);
+          if (rest.startsWith(":")) {
+            const restParts = rest.slice(1).split(":");
+            if (restParts.length >= 2) {
+              host = restParts[0];
+              container = restParts[1];
+            }
+          }
+        }
+      } else {
+        const parts = mappingPart.split(":");
+        if (parts.length >= 3) {
+          hostIp = parts.slice(0, parts.length - 2).join(":");
+          host = parts[parts.length - 2];
+          container = parts[parts.length - 1];
+        } else if (parts.length === 2) {
+          host = parts[0];
+          container = parts[1];
+        } else if (parts.length === 1) {
+          host = parts[0];
+          container = parts[0];
+        }
       }
       return {
         id: crypto.randomUUID(),
+        hostIp,
         host: Number(host) || host,
         container: Number(container) || container,
         protocol,
       };
     },
     parseVolumeMapping(mapping, fallbackName) {
-      const parts = mapping.split(":");
-      const readOnly = parts[parts.length - 1] === "ro";
-      if (readOnly) parts.pop();
+      let readOnly = false;
+      let normalized = mapping;
+      if (normalized.endsWith(":ro")) {
+        readOnly = true;
+        normalized = normalized.slice(0, -3);
+      }
       let source = "";
       let target = "";
-      if (parts.length >= 2) {
-        source = parts[0];
-        target = parts[1];
-      } else if (parts.length === 1) {
-        target = parts[0];
-        source = `${fallbackName}-data`;
+      if (/^[A-Za-z]:[\\/]/.test(normalized)) {
+        const firstColon = normalized.indexOf(":");
+        const lastColon = normalized.lastIndexOf(":");
+        if (lastColon > firstColon) {
+          source = normalized.slice(0, lastColon);
+          target = normalized.slice(lastColon + 1);
+        } else {
+          target = normalized;
+          source = `${fallbackName}-data`;
+        }
+      } else {
+        const parts = normalized.split(":");
+        if (parts.length >= 2) {
+          source = parts[0];
+          target = parts[1];
+        } else if (parts.length === 1) {
+          target = parts[0];
+          source = `${fallbackName}-data`;
+        }
       }
       const isBind =
         source.startsWith("/") ||
@@ -852,7 +891,13 @@ export default {
           service.ports.forEach((port) => {
             if (!port.host || !port.container) return;
             const suffix = port.protocol && port.protocol !== "tcp" ? `/${port.protocol}` : "";
-            lines.push(`      - "${port.host}:${port.container}${suffix}"`);
+            const rawHostIp = port.hostIp || "";
+            const hostIp =
+              rawHostIp && rawHostIp.includes(":") && !rawHostIp.startsWith("[")
+                ? `[${rawHostIp}]`
+                : rawHostIp;
+            const prefix = hostIp ? `${hostIp}:` : "";
+            lines.push(`      - "${prefix}${port.host}:${port.container}${suffix}"`);
           });
         }
         if (service.volumes.length) {
