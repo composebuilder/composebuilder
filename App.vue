@@ -948,11 +948,12 @@ export default {
 @import "@fontsource/jetbrains-mono/400.css";
 
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
   --bg: #f6f0e8;
   --bg-2: #f1e7da;
   --surface: #fff9f2;
   --surface-2: #fff4e4;
+  --surface-3: #fffdf8;
   --ink: #1d1b19;
   --muted: #6b5f52;
   --accent: #c45a1a;
@@ -961,6 +962,16 @@ export default {
   --danger: #b63b29;
   --ring: rgba(196, 90, 26, 0.25);
   --shadow: 0 18px 50px rgba(29, 27, 25, 0.12);
+  --body-grad-1: #fff3df;
+  --body-grad-2: #eadfce;
+  --input-bg: #ffffff;
+  --border: rgba(29, 27, 25, 0.15);
+  --border-soft: rgba(29, 27, 25, 0.12);
+  --border-faint: rgba(29, 27, 25, 0.08);
+  --border-dashed: rgba(29, 27, 25, 0.2);
+  --compose-bg: #191613;
+  --compose-ink: #f5e9da;
+  --compose-line: rgba(245, 233, 218, 0.5);
   --font-title: "Fraunces", "Times New Roman", serif;
   --font-body: "Space Grotesk", "Segoe UI", sans-serif;
 }
@@ -974,7 +985,7 @@ export default {
 body {
   margin: 0;
   min-height: 100vh;
-  background: radial-gradient(circle at top left, #fff3df 0%, var(--bg) 45%, #eadfce 100%);
+  background: radial-gradient(circle at top left, var(--body-grad-1) 0%, var(--bg) 45%, var(--body-grad-2) 100%);
   color: var(--ink);
   font-family: var(--font-body);
 }
@@ -1191,8 +1202,8 @@ textarea,
 select {
   padding: 10px 12px;
   border-radius: 12px;
-  border: 1px solid rgba(29, 27, 25, 0.15);
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
   font-family: var(--font-body);
   transition: border 0.2s ease, box-shadow 0.2s ease;
 }
@@ -1239,7 +1250,7 @@ textarea {
 
 .button--ghost {
   background: transparent;
-  border: 1px solid rgba(29, 27, 25, 0.15);
+  border: 1px solid var(--border);
   color: var(--ink);
 }
 
@@ -1255,7 +1266,7 @@ textarea {
 }
 
 .chip {
-  border: 1px dashed rgba(29, 27, 25, 0.2);
+  border: 1px dashed var(--border-dashed);
   background: transparent;
   padding: 6px 12px;
   border-radius: 16px;
@@ -1298,7 +1309,7 @@ textarea {
 .service-card {
   border-radius: 20px;
   padding: 20px;
-  border: 1px solid rgba(29, 27, 25, 0.08);
+  border: 1px solid var(--border-faint);
   background: var(--surface-2);
   display: grid;
   gap: 18px;
@@ -1331,7 +1342,7 @@ textarea {
   width: 14px;
   height: 14px;
   border-radius: 4px;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 0 2px var(--surface);
 }
 
 .image-scroll {
@@ -1384,8 +1395,8 @@ textarea {
 .subpanel {
   padding: 16px;
   border-radius: 18px;
-  background: #fffdf8;
-  border: 1px dashed rgba(29, 27, 25, 0.12);
+  background: var(--surface-3);
+  border: 1px dashed var(--border-soft);
   display: grid;
   gap: 12px;
 }
@@ -1409,12 +1420,12 @@ textarea {
   border-radius: 16px;
   text-align: center;
   color: var(--muted);
-  border: 1px dashed rgba(29, 27, 25, 0.2);
+  border: 1px dashed var(--border-dashed);
 }
 
 .compose-output {
-  background: #191613;
-  color: #f5e9da;
+  background: var(--compose-bg);
+  color: var(--compose-ink);
   border-radius: 18px;
   padding: 18px 18px 18px 8px;
   overflow-x: auto;
@@ -1432,7 +1443,7 @@ textarea {
 .line-numbers {
   user-select: none;
   text-align: right;
-  color: rgba(245, 233, 218, 0.5);
+  color: var(--compose-line);
   font-size: inherit;
   line-height: 1.5;
   overflow: hidden;
@@ -1521,6 +1532,35 @@ textarea {
 
   .layout__right {
     position: static;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #141210;
+    --bg-2: #191613;
+    --surface: #1f1d1b;
+    --surface-2: #23211f;
+    --surface-3: #1b1917;
+    --ink: #f4efe8;
+    --muted: #b6a99a;
+    --accent: #e07a3a;
+    --accent-2: #37a0b0;
+    --accent-3: #f0c35a;
+    --danger: #e26858;
+    --ring: rgba(224, 122, 58, 0.35);
+    --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    --body-grad-1: #1b1917;
+    --body-grad-2: #0e0d0c;
+    --input-bg: #1a1917;
+    --border: rgba(244, 239, 232, 0.2);
+    --border-soft: rgba(244, 239, 232, 0.16);
+    --border-faint: rgba(244, 239, 232, 0.12);
+    --border-dashed: rgba(244, 239, 232, 0.25);
+    --compose-bg: #0f0e0d;
+    --compose-ink: #efe7dc;
+    --compose-line: rgba(239, 231, 220, 0.5);
   }
 }
 </style>
