@@ -393,6 +393,10 @@ const normalizeWindowsPath = (value) => {
   return value;
 };
 
+const sanitizeYamlWindowsPaths = (text) => {
+  return text.replace(/[A-Za-z]:\\[^"\r\n']*/g, (match) => match.replace(/\\/g, "/"));
+};
+
 const colorPalette = [
   "#c45a1a",
   "#247c8a",
@@ -843,7 +847,11 @@ export default {
     importFromYamlText() {
       if (!this.composeYamlText.trim()) return;
       try {
-        const doc = yamlLoad(this.composeYamlText);
+        const cleaned = sanitizeYamlWindowsPaths(this.composeYamlText);
+        if (cleaned !== this.composeYamlText) {
+          this.composeYamlText = cleaned;
+        }
+        const doc = yamlLoad(cleaned);
         this.applyImportedServices(doc);
         this.yamlDirty = false;
         this.composeYaml = this.generateCompose();
