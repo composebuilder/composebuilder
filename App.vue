@@ -119,11 +119,11 @@
               </div>
               <div class="field">
                 <label>用户 ID</label>
-                <input type="number" min="0" v-model.number="service.userId" />
+                <input type="number" min="0" v-model.number="service.userId" @input="normalizeUserIds(service)" />
               </div>
               <div class="field">
                 <label>组 ID</label>
-                <input type="number" min="0" v-model.number="service.groupId" />
+                <input type="number" min="0" v-model.number="service.groupId" @input="normalizeUserIds(service)" />
               </div>
             </div>
 
@@ -586,6 +586,14 @@ export default {
     syncServiceName(service) {
       service.serviceName = service.containerName || imageBaseName(service.image);
     },
+    normalizeUserIds(service) {
+      if (service.userId === "" || Number.isNaN(service.userId)) {
+        service.userId = null;
+      }
+      if (service.groupId === "" || Number.isNaN(service.groupId)) {
+        service.groupId = null;
+      }
+    },
     availableDependsOn(service) {
       return this.services.filter(
         (item) => item.id !== service.id && item.health?.type && item.health.type !== "none"
@@ -929,12 +937,7 @@ export default {
         if (service.privileged) {
           lines.push("    privileged: true");
         }
-        if (
-          service.userId !== null &&
-          service.userId !== undefined &&
-          service.groupId !== null &&
-          service.groupId !== undefined
-        ) {
+        if (Number.isFinite(service.userId) && Number.isFinite(service.groupId)) {
           lines.push(`    user: "${service.userId}:${service.groupId}"`);
         }
         const envPairs = service.env
