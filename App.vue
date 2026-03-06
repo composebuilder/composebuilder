@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="app">
     <header class="hero">
       <div class="hero__content">
@@ -13,7 +13,7 @@
           <span>镜像：<a href="https://hub.docker.com/r/composebuilder/composebuilder" target="_blank"
               rel="noopener noreferrer">composebuilder/composebuilder</a></span>
           <span>前端架构：Vue 3</span>
-          <span>当前版本：v2026.1.31.1</span>
+          <span>当前版本：v2026.3.6.0</span>
         </div>
       </div>
       <div class="hero__art">
@@ -119,11 +119,13 @@
               </div>
               <div class="field">
                 <label>用户 ID</label>
-                <input type="number" min="0" v-model.number="service.userId" />
+                <input type="number" min="0" v-model.number="service.userId"
+                  @input="normalizeUserId(service, 'userId', $event)" />
               </div>
               <div class="field">
                 <label>组 ID</label>
-                <input type="number" min="0" v-model.number="service.groupId" />
+                <input type="number" min="0" v-model.number="service.groupId"
+                  @input="normalizeUserId(service, 'groupId', $event)" />
               </div>
             </div>
 
@@ -189,7 +191,7 @@
                 </div>
                 <div class="field">
                   <label>{{ vol.kind === 'bind' ? '宿主机目录' : '卷名称' }}</label>
-                  <input v-model.trim="vol.source" />
+                  <input v-model.trim="vol.source" @input="normalizeVolumeSource(vol, $event)" />
                 </div>
                 <div class="field">
                   <label>容器目录</label>
@@ -384,6 +386,17 @@ const imageDeveloperName = (image) => {
 const defaultVolumePath = (containerName) =>
   containerName ? `/srv/${containerName}/data` : "/srv/container/data";
 
+const normalizeWindowsPath = (value) => {
+  if (/^[A-Za-z]:[\\/]/.test(value)) {
+    return value.replace(/\\/g, "/");
+  }
+  return value;
+};
+
+const sanitizeYamlWindowsPaths = (text) => {
+  return text.replace(/[A-Za-z]:\\[^"\r\n']*/g, (match) => match.replace(/\\/g, "/"));
+};
+
 const colorPalette = [
   "#c45a1a",
   "#247c8a",
@@ -443,8 +456,8 @@ const newService = (image) => {
       startPeriod: "10s",
     },
     privileged: false,
-    userId: 0,
-    groupId: 0,
+    userId: null,
+    groupId: null,
   };
 };
 
@@ -586,6 +599,19 @@ export default {
     syncServiceName(service) {
       service.serviceName = service.containerName || imageBaseName(service.image);
     },
+    normalizeVolumeSource(volume, event) {
+      const raw = event?.target?.value ?? volume.source ?? "";
+      volume.source = normalizeWindowsPath(raw);
+    },
+    normalizeUserId(service, key, event) {
+      const raw = event?.target?.value ?? "";
+      if (raw === "") {
+        service[key] = null;
+        return;
+      }
+      const parsed = Number(raw);
+      service[key] = Number.isFinite(parsed) ? parsed : null;
+    },
     availableDependsOn(service) {
       return this.services.filter(
         (item) => item.id !== service.id && item.health?.type && item.health.type !== "none"
@@ -601,6 +627,7 @@ export default {
     addPort(service) {
       service.ports.push({
         id: crypto.randomUUID(),
+        hostIp: "",
         host: 3000,
         container: 3000,
         protocol: "tcp",
@@ -610,6 +637,7 @@ export default {
       if (this.hasPort(service, port)) return;
       service.ports.push({
         id: crypto.randomUUID(),
+        hostIp: "",
         host: port,
         container: port,
         protocol: "tcp",
@@ -652,41 +680,80 @@ export default {
     parsePortMapping(mapping) {
       const [mappingPart, protocolPart] = mapping.split("/");
       const protocol = protocolPart || "tcp";
-      const parts = mappingPart.split(":");
+      let hostIp = "";
       let host = "";
       let container = "";
-      if (parts.length >= 2) {
-        container = parts[parts.length - 1];
-        host = parts[parts.length - 2];
-      } else if (parts.length === 1) {
-        host = parts[0];
-        container = parts[0];
+      if (mappingPart.startsWith("[")) {
+        const endBracket = mappingPart.indexOf("]");
+        if (endBracket > 0) {
+          hostIp = mappingPart.slice(1, endBracket);
+          const rest = mappingPart.slice(endBracket + 1);
+          if (rest.startsWith(":")) {
+            const restParts = rest.slice(1).split(":");
+            if (restParts.length >= 2) {
+              host = restParts[0];
+              container = restParts[1];
+            }
+          }
+        }
+      } else {
+        const parts = mappingPart.split(":");
+        if (parts.length >= 3) {
+          hostIp = parts.slice(0, parts.length - 2).join(":");
+          host = parts[parts.length - 2];
+          container = parts[parts.length - 1];
+        } else if (parts.length === 2) {
+          host = parts[0];
+          container = parts[1];
+        } else if (parts.length === 1) {
+          host = parts[0];
+          container = parts[0];
+        }
       }
       return {
         id: crypto.randomUUID(),
+        hostIp,
         host: Number(host) || host,
         container: Number(container) || container,
         protocol,
       };
     },
     parseVolumeMapping(mapping, fallbackName) {
-      const parts = mapping.split(":");
-      const readOnly = parts[parts.length - 1] === "ro";
-      if (readOnly) parts.pop();
+      let readOnly = false;
+      let normalized = mapping;
+      if (normalized.endsWith(":ro")) {
+        readOnly = true;
+        normalized = normalized.slice(0, -3);
+      }
+      normalized = normalizeWindowsPath(normalized);
       let source = "";
       let target = "";
-      if (parts.length >= 2) {
-        source = parts[0];
-        target = parts[1];
-      } else if (parts.length === 1) {
-        target = parts[0];
-        source = `${fallbackName}-data`;
+      if (/^[A-Za-z]:[\\/]/.test(normalized)) {
+        const firstColon = normalized.indexOf(":");
+        const lastColon = normalized.lastIndexOf(":");
+        if (lastColon > firstColon) {
+          source = normalized.slice(0, lastColon);
+          target = normalized.slice(lastColon + 1);
+        } else {
+          target = normalized;
+          source = `${fallbackName}-data`;
+        }
+      } else {
+        const parts = normalized.split(":");
+        if (parts.length >= 2) {
+          source = parts[0];
+          target = parts[1];
+        } else if (parts.length === 1) {
+          target = parts[0];
+          source = `${fallbackName}-data`;
+        }
       }
       const isBind =
         source.startsWith("/") ||
         source.startsWith("./") ||
         source.startsWith("../") ||
-        source.startsWith("~");
+        source.startsWith("~") ||
+        /^[A-Za-z]:\//.test(source);
       return {
         id: crypto.randomUUID(),
         kind: isBind ? "bind" : "volume",
@@ -780,7 +847,11 @@ export default {
     importFromYamlText() {
       if (!this.composeYamlText.trim()) return;
       try {
-        const doc = yamlLoad(this.composeYamlText);
+        const cleaned = sanitizeYamlWindowsPaths(this.composeYamlText);
+        if (cleaned !== this.composeYamlText) {
+          this.composeYamlText = cleaned;
+        }
+        const doc = yamlLoad(cleaned);
         this.applyImportedServices(doc);
         this.yamlDirty = false;
         this.composeYaml = this.generateCompose();
@@ -852,7 +923,13 @@ export default {
           service.ports.forEach((port) => {
             if (!port.host || !port.container) return;
             const suffix = port.protocol && port.protocol !== "tcp" ? `/${port.protocol}` : "";
-            lines.push(`      - "${port.host}:${port.container}${suffix}"`);
+            const rawHostIp = port.hostIp || "";
+            const hostIp =
+              rawHostIp && rawHostIp.includes(":") && !rawHostIp.startsWith("[")
+                ? `[${rawHostIp}]`
+                : rawHostIp;
+            const prefix = hostIp ? `${hostIp}:` : "";
+            lines.push(`      - "${prefix}${port.host}:${port.container}${suffix}"`);
           });
         }
         if (service.volumes.length) {
@@ -864,7 +941,8 @@ export default {
               volumeNames.add(vol.source);
               lines.push(`      - "${vol.source}:${vol.target}${mode}"`);
             } else {
-              lines.push(`      - "${vol.source}:${vol.target}${mode}"`);
+              const source = normalizeWindowsPath(vol.source);
+              lines.push(`      - "${source}:${vol.target}${mode}"`);
             }
           });
         }
@@ -884,12 +962,7 @@ export default {
         if (service.privileged) {
           lines.push("    privileged: true");
         }
-        if (
-          service.userId !== null &&
-          service.userId !== undefined &&
-          service.groupId !== null &&
-          service.groupId !== undefined
-        ) {
+        if (Number.isFinite(service.userId) && Number.isFinite(service.groupId)) {
           lines.push(`    user: "${service.userId}:${service.groupId}"`);
         }
         const envPairs = service.env
@@ -948,11 +1021,12 @@ export default {
 @import "@fontsource/jetbrains-mono/400.css";
 
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
   --bg: #f6f0e8;
   --bg-2: #f1e7da;
   --surface: #fff9f2;
   --surface-2: #fff4e4;
+  --surface-3: #fffdf8;
   --ink: #1d1b19;
   --muted: #6b5f52;
   --accent: #c45a1a;
@@ -961,6 +1035,16 @@ export default {
   --danger: #b63b29;
   --ring: rgba(196, 90, 26, 0.25);
   --shadow: 0 18px 50px rgba(29, 27, 25, 0.12);
+  --body-grad-1: #fff3df;
+  --body-grad-2: #eadfce;
+  --input-bg: #ffffff;
+  --border: rgba(29, 27, 25, 0.15);
+  --border-soft: rgba(29, 27, 25, 0.12);
+  --border-faint: rgba(29, 27, 25, 0.08);
+  --border-dashed: rgba(29, 27, 25, 0.2);
+  --compose-bg: #191613;
+  --compose-ink: #f5e9da;
+  --compose-line: rgba(245, 233, 218, 0.5);
   --font-title: "Fraunces", "Times New Roman", serif;
   --font-body: "Space Grotesk", "Segoe UI", sans-serif;
 }
@@ -974,7 +1058,7 @@ export default {
 body {
   margin: 0;
   min-height: 100vh;
-  background: radial-gradient(circle at top left, #fff3df 0%, var(--bg) 45%, #eadfce 100%);
+  background: radial-gradient(circle at top left, var(--body-grad-1) 0%, var(--bg) 45%, var(--body-grad-2) 100%);
   color: var(--ink);
   font-family: var(--font-body);
 }
@@ -1191,8 +1275,8 @@ textarea,
 select {
   padding: 10px 12px;
   border-radius: 12px;
-  border: 1px solid rgba(29, 27, 25, 0.15);
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
   font-family: var(--font-body);
   transition: border 0.2s ease, box-shadow 0.2s ease;
 }
@@ -1239,7 +1323,7 @@ textarea {
 
 .button--ghost {
   background: transparent;
-  border: 1px solid rgba(29, 27, 25, 0.15);
+  border: 1px solid var(--border);
   color: var(--ink);
 }
 
@@ -1255,7 +1339,7 @@ textarea {
 }
 
 .chip {
-  border: 1px dashed rgba(29, 27, 25, 0.2);
+  border: 1px dashed var(--border-dashed);
   background: transparent;
   padding: 6px 12px;
   border-radius: 16px;
@@ -1298,7 +1382,7 @@ textarea {
 .service-card {
   border-radius: 20px;
   padding: 20px;
-  border: 1px solid rgba(29, 27, 25, 0.08);
+  border: 1px solid var(--border-faint);
   background: var(--surface-2);
   display: grid;
   gap: 18px;
@@ -1331,7 +1415,7 @@ textarea {
   width: 14px;
   height: 14px;
   border-radius: 4px;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 0 2px var(--surface);
 }
 
 .image-scroll {
@@ -1384,8 +1468,8 @@ textarea {
 .subpanel {
   padding: 16px;
   border-radius: 18px;
-  background: #fffdf8;
-  border: 1px dashed rgba(29, 27, 25, 0.12);
+  background: var(--surface-3);
+  border: 1px dashed var(--border-soft);
   display: grid;
   gap: 12px;
 }
@@ -1409,12 +1493,12 @@ textarea {
   border-radius: 16px;
   text-align: center;
   color: var(--muted);
-  border: 1px dashed rgba(29, 27, 25, 0.2);
+  border: 1px dashed var(--border-dashed);
 }
 
 .compose-output {
-  background: #191613;
-  color: #f5e9da;
+  background: var(--compose-bg);
+  color: var(--compose-ink);
   border-radius: 18px;
   padding: 18px 18px 18px 8px;
   overflow-x: auto;
@@ -1432,7 +1516,7 @@ textarea {
 .line-numbers {
   user-select: none;
   text-align: right;
-  color: rgba(245, 233, 218, 0.5);
+  color: var(--compose-line);
   font-size: inherit;
   line-height: 1.5;
   overflow: hidden;
@@ -1521,6 +1605,35 @@ textarea {
 
   .layout__right {
     position: static;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #141210;
+    --bg-2: #191613;
+    --surface: #1f1d1b;
+    --surface-2: #23211f;
+    --surface-3: #1b1917;
+    --ink: #f4efe8;
+    --muted: #b6a99a;
+    --accent: #e07a3a;
+    --accent-2: #37a0b0;
+    --accent-3: #f0c35a;
+    --danger: #e26858;
+    --ring: rgba(224, 122, 58, 0.35);
+    --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    --body-grad-1: #1b1917;
+    --body-grad-2: #0e0d0c;
+    --input-bg: #1a1917;
+    --border: rgba(244, 239, 232, 0.2);
+    --border-soft: rgba(244, 239, 232, 0.16);
+    --border-faint: rgba(244, 239, 232, 0.12);
+    --border-dashed: rgba(244, 239, 232, 0.25);
+    --compose-bg: #0f0e0d;
+    --compose-ink: #efe7dc;
+    --compose-line: rgba(239, 231, 220, 0.5);
   }
 }
 </style>

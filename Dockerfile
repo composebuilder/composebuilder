@@ -1,4 +1,4 @@
-# 构建镜像
+﻿# 构建镜像
 FROM node:24-alpine AS build
 
 # 设置工作目录
