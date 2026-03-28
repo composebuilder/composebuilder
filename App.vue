@@ -844,7 +844,7 @@ export default {
         service.containerName = containerName;
         service.serviceName = serviceName || containerName;
         service.color = colorPalette[index % colorPalette.length];
-        service.restart = typeof svc.restart === "string" ? svc.restart : "";
+        service.restart = this.normalizeRestartValue(svc.restart);
         service.networkMode = svc.network_mode || "ports";
         service.ports = Array.isArray(svc.ports)
           ? svc.ports.map((p) => this.parsePortMapping(String(p)))
@@ -911,6 +911,19 @@ export default {
       const text = String(value ?? "");
       return `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
     },
+    formatYamlKey(value) {
+      const text = String(value ?? "");
+      if (/^[A-Za-z0-9_.-]+$/.test(text)) return text;
+      return this.formatYamlDoubleQuoted(text);
+    },
+    normalizeRestartValue(value) {
+      if (typeof value !== "string") return "";
+      const text = value.trim();
+      if (!text) return "";
+      if (text === "no" || text === "always" || text === "unless-stopped") return text;
+      if (/^on-failure(?::\d+)?$/.test(text)) return text;
+      return "";
+    },
     importFromYamlText() {
       if (!this.composeYamlText.trim()) return;
       try {
@@ -973,13 +986,14 @@ export default {
 
       this.services.forEach((service) => {
         const name = service.serviceName || service.containerName || imageBaseName(service.image);
-        lines.push(`  ${name}:`);
-        lines.push(`    image: ${service.image}`);
+        lines.push(`  ${this.formatYamlKey(name)}:`);
+        lines.push(`    image: ${this.formatYamlDoubleQuoted(service.image)}`);
         if (service.containerName) {
-          lines.push(`    container_name: ${service.containerName}`);
+          lines.push(`    container_name: ${this.formatYamlDoubleQuoted(service.containerName)}`);
         }
-        if (service.restart) {
-          lines.push(`    restart: ${service.restart}`);
+        const restartValue = this.normalizeRestartValue(service.restart);
+        if (restartValue) {
+          lines.push(`    restart: ${restartValue}`);
         }
         if (service.networkMode === "bridge") {
           lines.push("    network_mode: bridge");
@@ -1037,16 +1051,16 @@ export default {
               validDeps.forEach((dep) => {
                 const cfg = depConfig[dep];
                 if (cfg && typeof cfg === "object" && !Array.isArray(cfg) && Object.keys(cfg).length) {
-                  lines.push(`      ${dep}:`);
+                  lines.push(`      ${this.formatYamlKey(dep)}:`);
                   Object.entries(cfg).forEach(([key, value]) => {
-                    lines.push(`        ${key}: ${this.formatYamlScalar(value)}`);
+                    lines.push(`        ${this.formatYamlKey(key)}: ${this.formatYamlScalar(value)}`);
                   });
                 } else {
-                  lines.push(`      ${dep}: {}`);
+                  lines.push(`      ${this.formatYamlKey(dep)}: {}`);
                 }
               });
             } else {
-              validDeps.forEach((dep) => lines.push(`      - ${dep}`));
+              validDeps.forEach((dep) => lines.push(`      - ${this.formatYamlDoubleQuoted(dep)}`));
             }
           }
         }
@@ -1087,7 +1101,7 @@ export default {
       if (volumeNames.size) {
         lines.push("volumes:");
         volumeNames.forEach((name) => {
-          lines.push(`  ${name}: {}`);
+          lines.push(`  ${this.formatYamlKey(name)}: {}`);
         });
       }
 
