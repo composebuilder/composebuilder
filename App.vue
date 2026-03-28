@@ -720,7 +720,6 @@ export default {
           host = parts[0];
           container = parts[1];
         } else if (parts.length === 1) {
-          host = parts[0];
           container = parts[0];
         }
       }
@@ -731,6 +730,22 @@ export default {
         container: Number(container) || container,
         protocol,
       };
+    },
+    parsePortEntry(entry) {
+      if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+        const hostIp = entry.host_ip ? String(entry.host_ip) : "";
+        const host = entry.published !== undefined && entry.published !== null ? Number(entry.published) || String(entry.published) : "";
+        const container = entry.target !== undefined && entry.target !== null ? Number(entry.target) || String(entry.target) : "";
+        const protocol = entry.protocol ? String(entry.protocol) : "tcp";
+        return {
+          id: crypto.randomUUID(),
+          hostIp,
+          host,
+          container,
+          protocol,
+        };
+      }
+      return this.parsePortMapping(String(entry));
     },
     parseVolumeMapping(mapping, fallbackName) {
       let readOnly = false;
@@ -775,6 +790,37 @@ export default {
         target,
         readOnly,
       };
+    },
+    parseVolumeEntry(entry, fallbackName) {
+      if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+        const readOnly = Boolean(entry.read_only);
+        const target = entry.target !== undefined && entry.target !== null ? String(entry.target) : "";
+        let source = entry.source !== undefined && entry.source !== null ? String(entry.source) : "";
+        source = normalizeWindowsPath(source);
+        let kind = "volume";
+        if (entry.type === "bind") {
+          kind = "bind";
+        } else if (entry.type === "volume") {
+          kind = "volume";
+        } else if (source) {
+          kind =
+            source.startsWith("/") ||
+            source.startsWith("./") ||
+            source.startsWith("../") ||
+            source.startsWith("~") ||
+            /^[A-Za-z]:\//.test(source)
+              ? "bind"
+              : "volume";
+        }
+        return {
+          id: crypto.randomUUID(),
+          kind,
+          source,
+          target,
+          readOnly,
+        };
+      }
+      return this.parseVolumeMapping(String(entry), fallbackName);
     },
     parseHealthcheck(health) {
       if (!health || !health.test) return null;
@@ -847,10 +893,10 @@ export default {
         service.restart = this.normalizeRestartValue(svc.restart);
         service.networkMode = svc.network_mode || "ports";
         service.ports = Array.isArray(svc.ports)
-          ? svc.ports.map((p) => this.parsePortMapping(String(p)))
+          ? svc.ports.map((p) => this.parsePortEntry(p))
           : [];
         service.volumes = Array.isArray(svc.volumes)
-          ? svc.volumes.map((v) => this.parseVolumeMapping(String(v), containerName))
+          ? svc.volumes.map((v) => this.parseVolumeEntry(v, containerName))
           : [];
         const envList = [];
         if (Array.isArray(svc.environment)) {
@@ -1001,7 +1047,7 @@ export default {
           lines.push("    network_mode: host");
         }
         if (service.networkMode !== "host" && service.ports.length) {
-          const validPorts = service.ports.filter((port) => port.host && port.container);
+          const validPorts = service.ports.filter((port) => port.container);
           if (validPorts.length) {
             lines.push("    ports:");
             validPorts.forEach((port) => {
@@ -1011,22 +1057,29 @@ export default {
                 rawHostIp && rawHostIp.includes(":") && !rawHostIp.startsWith("[")
                   ? `[${rawHostIp}]`
                   : rawHostIp;
-              const prefix = hostIp ? `${hostIp}:` : "";
-              lines.push(`      - "${prefix}${port.host}:${port.container}${suffix}"`);
+              const hasHostPort = port.host !== "" && port.host !== null && port.host !== undefined;
+              const hostPart = hasHostPort ? `${port.host}:` : "";
+              const ipPart = hasHostPort && hostIp ? `${hostIp}:` : "";
+              lines.push(`      - "${ipPart}${hostPart}${port.container}${suffix}"`);
             });
           }
         }
         if (service.volumes.length) {
-          const validVolumes = service.volumes.filter((vol) => vol.source && vol.target);
+          const validVolumes = service.volumes.filter((vol) => vol.target);
           if (validVolumes.length) {
             lines.push("    volumes:");
             validVolumes.forEach((vol) => {
               const mode = vol.readOnly ? ":ro" : "";
               if (vol.kind === "volume") {
-                volumeNames.add(vol.source);
-                lines.push(`      - "${vol.source}:${vol.target}${mode}"`);
+                if (vol.source) {
+                  volumeNames.add(vol.source);
+                  lines.push(`      - "${vol.source}:${vol.target}${mode}"`);
+                } else {
+                  lines.push(`      - "${vol.target}${mode}"`);
+                }
               } else {
                 const source = normalizeWindowsPath(vol.source);
+                if (!source) return;
                 lines.push(`      - "${source}:${vol.target}${mode}"`);
               }
             });
