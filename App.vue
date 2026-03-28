@@ -13,7 +13,7 @@
           <span>镜像：<a href="https://hub.docker.com/r/composebuilder/composebuilder" target="_blank"
               rel="noopener noreferrer">composebuilder/composebuilder</a></span>
           <span>前端架构：Vue 3</span>
-          <span>当前版本：v2026.3.6.0</span>
+          <span>当前版本：v2026.3.28.0</span>
         </div>
       </div>
       <div class="hero__art">
@@ -455,6 +455,7 @@ const newService = (image) => {
     dependsOn: [],
     dependsOnConfig: {},
     command: "",
+    commandList: [],
     health: {
       type: "none",
       port: 80,
@@ -843,7 +844,7 @@ export default {
         service.containerName = containerName;
         service.serviceName = serviceName || containerName;
         service.color = colorPalette[index % colorPalette.length];
-        service.restart = svc.restart || "no";
+        service.restart = typeof svc.restart === "string" ? svc.restart : "";
         service.networkMode = svc.network_mode || "ports";
         service.ports = Array.isArray(svc.ports)
           ? svc.ports.map((p) => this.parsePortMapping(String(p)))
@@ -862,7 +863,11 @@ export default {
           });
         } else if (svc.environment && typeof svc.environment === "object") {
           Object.entries(svc.environment).forEach(([key, value]) => {
-            envList.push({ id: crypto.randomUUID(), key, value: String(value) });
+            envList.push({
+              id: crypto.randomUUID(),
+              key,
+              value: value === null || value === undefined ? "" : String(value),
+            });
           });
         }
         service.env = envList;
@@ -875,11 +880,20 @@ export default {
           const [uid, gid] = svc.user.split(":");
           service.userId = Number(uid) || 0;
           service.groupId = Number(gid) || 0;
+        } else if (typeof svc.user === "string" && /^\d+$/.test(svc.user.trim())) {
+          service.userId = Number(svc.user.trim());
+          service.groupId = 0;
         } else if (typeof svc.user === "number") {
           service.userId = svc.user;
           service.groupId = 0;
         }
-        service.command = svc.command ? String(svc.command) : "";
+        if (Array.isArray(svc.command)) {
+          service.commandList = svc.command.map((item) => String(item));
+          service.command = "";
+        } else {
+          service.command = svc.command ? String(svc.command) : "";
+          service.commandList = [];
+        }
         const dependsOn = this.parseDependsOn(svc.depends_on);
         service.dependsOn = dependsOn.names;
         service.dependsOnConfig = dependsOn.config;
@@ -1038,6 +1052,9 @@ export default {
         }
         if (service.command && service.command.trim()) {
           lines.push(`    command: ${this.formatYamlDoubleQuoted(service.command.trim())}`);
+        } else if (Array.isArray(service.commandList) && service.commandList.length) {
+          const list = service.commandList.map((item) => this.formatYamlDoubleQuoted(item)).join(", ");
+          lines.push(`    command: [${list}]`);
         }
         if (service.privileged) {
           lines.push("    privileged: true");
