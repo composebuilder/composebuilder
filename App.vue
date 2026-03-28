@@ -365,13 +365,21 @@
 import { load as yamlLoad } from "js-yaml";
 
 const imageBaseName = (image) => {
-  const noTag = image.split(":")[0];
+  const imageText = String(image || "");
+  const slashIndex = imageText.lastIndexOf("/");
+  const colonIndex = imageText.lastIndexOf(":");
+  const hasTag = colonIndex > slashIndex;
+  const noTag = hasTag ? imageText.slice(0, colonIndex) : imageText;
   const parts = noTag.split("/");
   return parts[parts.length - 1] || noTag;
 };
 
 const imageDeveloperName = (image) => {
-  const noTag = image.split(":")[0];
+  const imageText = String(image || "");
+  const slashIndex = imageText.lastIndexOf("/");
+  const colonIndex = imageText.lastIndexOf(":");
+  const hasTag = colonIndex > slashIndex;
+  const noTag = hasTag ? imageText.slice(0, colonIndex) : imageText;
   const parts = noTag.split("/");
   if (parts.length > 1) {
     const first = parts[0];
@@ -885,6 +893,10 @@ export default {
       if (/^[A-Za-z0-9_.-]+$/.test(text)) return text;
       return `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
     },
+    formatYamlDoubleQuoted(value) {
+      const text = String(value ?? "");
+      return `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+    },
     importFromYamlText() {
       if (!this.composeYamlText.trim()) return;
       try {
@@ -929,6 +941,7 @@ export default {
       } else if (health.type === "tcp") {
         cmd = `nc -z localhost ${health.port} || exit 1`;
       }
+      if (!String(cmd || "").trim()) return null;
       return {
         test: ["CMD-SHELL", cmd],
         interval: health.interval || "30s",
@@ -1024,7 +1037,7 @@ export default {
           }
         }
         if (service.command && service.command.trim()) {
-          lines.push(`    command: ${service.command.trim()}`);
+          lines.push(`    command: ${this.formatYamlDoubleQuoted(service.command.trim())}`);
         }
         if (service.privileged) {
           lines.push("    privileged: true");
@@ -1034,15 +1047,19 @@ export default {
         }
         const envPairs = service.env
           .map((env) => `${env.key}=${env.value}`)
-          .filter((pair) => pair !== "=" && !pair.startsWith("=") && !pair.endsWith("="));
+          .filter((pair) => pair !== "=" && !pair.startsWith("="));
         if (envPairs.length) {
           lines.push("    environment:");
-          envPairs.forEach((pair) => lines.push(`      - "${pair}"`));
+          envPairs.forEach((pair) => lines.push(`      - ${this.formatYamlDoubleQuoted(pair)}`));
         }
         const healthcheck = this.buildHealthcheck(service);
         if (healthcheck) {
           lines.push("    healthcheck:");
-          lines.push(`      test: ["${healthcheck.test[0]}", "${healthcheck.test[1]}"]`);
+          lines.push(
+            `      test: [${this.formatYamlDoubleQuoted(healthcheck.test[0])}, ${this.formatYamlDoubleQuoted(
+              healthcheck.test[1]
+            )}]`
+          );
           lines.push(`      interval: ${healthcheck.interval}`);
           lines.push(`      timeout: ${healthcheck.timeout}`);
           lines.push(`      retries: ${healthcheck.retries}`);
