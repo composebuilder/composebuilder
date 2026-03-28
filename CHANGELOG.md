@@ -28,6 +28,8 @@
 24. 修复导入 `healthcheck.test: ["NONE"]` 后导出语义漂移的问题，现保留并回写显式禁用健康检查状态
 25. 修复导入 `user: "1000"`/`user: 1000` 时被错误补全为 `user: "1000:0"` 的问题，现按 UID-only 语义导出
 26. 优化 YAML 标量序列化策略：字符串默认加引号并使用安全转义，避免 `yes/no/on/off/null/001` 等被 YAML 隐式类型转换
+27. 优化 YAML key 序列化策略：key 统一加引号，避免 `null/on/off/yes/no/001` 等键名触发隐式类型转换
+28. 简化 `onHealthTypeChange` 逻辑，移除冗余分支并保持行为一致
 
 ## v2026.3.6.0
 
