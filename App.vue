@@ -13,7 +13,7 @@
           <span>镜像：<a href="https://hub.docker.com/r/composebuilder/composebuilder" target="_blank"
               rel="noopener noreferrer">composebuilder/composebuilder</a></span>
           <span>前端架构：Vue 3</span>
-          <span>当前版本：v2026.3.6.0</span>
+          <span>当前版本：v2026.3.28.0</span>
         </div>
       </div>
       <div class="hero__art">
@@ -104,7 +104,7 @@
               </div>
               <div class="field">
                 <label>网络模式</label>
-                <select v-model="service.networkMode">
+                <select v-model="service.networkMode" @change="onNetworkModeChange(service)">
                   <option value="ports">端口映射</option>
                   <option value="bridge">网桥 (bridge)</option>
                   <option value="host">宿主机 (host)</option>
@@ -224,7 +224,7 @@
                 </div>
                 <div class="field">
                   <label>值</label>
-                  <input v-model.trim="env.value" />
+                  <input v-model.trim="env.value" @input="clearEnvNull(env)" />
                 </div>
                 <button class="button button--ghost" @click="removeEnv(service, idx)">删除</button>
               </div>
@@ -254,7 +254,8 @@
               </div>
               <div class="field">
                 <label>command</label>
-                <input v-model.trim="service.command" placeholder="例如：nginx -g 'daemon off;'" />
+                <input v-model.trim="service.command" @input="onCommandInput(service)"
+                  placeholder="例如：nginx -g 'daemon off;'" />
               </div>
               <p class="hint">command 可为空，将不写入配置。</p>
             </div>
@@ -266,7 +267,7 @@
               <div class="grid">
                 <div class="field">
                   <label>类型</label>
-                  <select v-model="service.health.type">
+                  <select v-model="service.health.type" @change="onHealthTypeChange(service)">
                     <option value="none">不启用</option>
                     <option value="http">HTTP</option>
                     <option value="tcp">TCP</option>
@@ -365,13 +366,21 @@
 import { load as yamlLoad } from "js-yaml";
 
 const imageBaseName = (image) => {
-  const noTag = image.split(":")[0];
+  const imageText = String(image || "");
+  const slashIndex = imageText.lastIndexOf("/");
+  const colonIndex = imageText.lastIndexOf(":");
+  const hasTag = colonIndex > slashIndex;
+  const noTag = hasTag ? imageText.slice(0, colonIndex) : imageText;
   const parts = noTag.split("/");
   return parts[parts.length - 1] || noTag;
 };
 
 const imageDeveloperName = (image) => {
-  const noTag = image.split(":")[0];
+  const imageText = String(image || "");
+  const slashIndex = imageText.lastIndexOf("/");
+  const colonIndex = imageText.lastIndexOf(":");
+  const hasTag = colonIndex > slashIndex;
+  const noTag = hasTag ? imageText.slice(0, colonIndex) : imageText;
   const parts = noTag.split("/");
   if (parts.length > 1) {
     const first = parts[0];
@@ -426,6 +435,7 @@ const newService = (image) => {
     color: "",
     restart: "unless-stopped",
     networkMode: "ports",
+    rawNetworkMode: "",
     ports: [
       {
         id: crypto.randomUUID(),
@@ -445,9 +455,13 @@ const newService = (image) => {
     ],
     env: [],
     dependsOn: [],
+    dependsOnConfig: {},
     command: "",
+    commandList: [],
+    rawBuild: null,
     health: {
       type: "none",
+      disable: false,
       port: 80,
       cmd: "",
       interval: "30s",
@@ -618,8 +632,12 @@ export default {
       );
     },
     toggleDependsOn(service, name) {
+      if (!service.dependsOnConfig || typeof service.dependsOnConfig !== "object") {
+        service.dependsOnConfig = {};
+      }
       if (service.dependsOn.includes(name)) {
         service.dependsOn = service.dependsOn.filter((item) => item !== name);
+        delete service.dependsOnConfig[name];
       } else {
         service.dependsOn = [...service.dependsOn, name];
       }
@@ -672,10 +690,23 @@ export default {
         id: crypto.randomUUID(),
         key: "",
         value: "",
+        isNull: false,
       });
     },
     removeEnv(service, idx) {
       service.env.splice(idx, 1);
+    },
+    clearEnvNull(env) {
+      env.isNull = false;
+    },
+    onNetworkModeChange(service) {
+      service.rawNetworkMode = "";
+    },
+    onCommandInput(service) {
+      service.commandList = [];
+    },
+    onHealthTypeChange(service) {
+      service.health.disable = false;
     },
     parsePortMapping(mapping) {
       const [mappingPart, protocolPart] = mapping.split("/");
@@ -706,7 +737,6 @@ export default {
           host = parts[0];
           container = parts[1];
         } else if (parts.length === 1) {
-          host = parts[0];
           container = parts[0];
         }
       }
@@ -717,6 +747,22 @@ export default {
         container: Number(container) || container,
         protocol,
       };
+    },
+    parsePortEntry(entry) {
+      if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+        const hostIp = entry.host_ip ? String(entry.host_ip) : "";
+        const host = entry.published !== undefined && entry.published !== null ? Number(entry.published) || String(entry.published) : "";
+        const container = entry.target !== undefined && entry.target !== null ? Number(entry.target) || String(entry.target) : "";
+        const protocol = entry.protocol ? String(entry.protocol) : "tcp";
+        return {
+          id: crypto.randomUUID(),
+          hostIp,
+          host,
+          container,
+          protocol,
+        };
+      }
+      return this.parsePortMapping(String(entry));
     },
     parseVolumeMapping(mapping, fallbackName) {
       let readOnly = false;
@@ -762,10 +808,53 @@ export default {
         readOnly,
       };
     },
+    parseVolumeEntry(entry, fallbackName) {
+      if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+        const readOnly = Boolean(entry.read_only);
+        const target = entry.target !== undefined && entry.target !== null ? String(entry.target) : "";
+        let source = entry.source !== undefined && entry.source !== null ? String(entry.source) : "";
+        source = normalizeWindowsPath(source);
+        let kind = "volume";
+        if (entry.type === "bind") {
+          kind = "bind";
+        } else if (entry.type === "volume") {
+          kind = "volume";
+        } else if (source) {
+          kind =
+            source.startsWith("/") ||
+            source.startsWith("./") ||
+            source.startsWith("../") ||
+            source.startsWith("~") ||
+            /^[A-Za-z]:\//.test(source)
+              ? "bind"
+              : "volume";
+        }
+        return {
+          id: crypto.randomUUID(),
+          kind,
+          source,
+          target,
+          readOnly,
+        };
+      }
+      return this.parseVolumeMapping(String(entry), fallbackName);
+    },
     parseHealthcheck(health) {
       if (!health || !health.test) return null;
       let cmd = "";
       if (Array.isArray(health.test)) {
+        if (String(health.test[0] || "").toUpperCase() === "NONE") {
+          return {
+            type: "none",
+            disable: true,
+            port: 80,
+            cmd: "",
+            interval: health.interval || "30s",
+            timeout: health.timeout || "5s",
+            retries: Number(health.retries) || 3,
+            startPeriod: health.start_period || "10s",
+          };
+        }
         if (health.test[0] === "CMD-SHELL") {
           cmd = health.test[1] || "";
         } else {
@@ -779,6 +868,7 @@ export default {
       const type = httpMatch ? "http" : tcpMatch ? "tcp" : "cmd";
       return {
         type,
+        disable: false,
         port: Number(httpMatch?.[1] || tcpMatch?.[1] || 80),
         cmd,
         interval: health.interval || "30s",
@@ -788,9 +878,24 @@ export default {
       };
     },
     parseDependsOn(dependsOn) {
-      if (Array.isArray(dependsOn)) return dependsOn;
-      if (dependsOn && typeof dependsOn === "object") return Object.keys(dependsOn);
-      return [];
+      if (Array.isArray(dependsOn)) {
+        return {
+          names: dependsOn.map((name) => String(name)),
+          config: {},
+        };
+      }
+      if (dependsOn && typeof dependsOn === "object") {
+        const names = Object.keys(dependsOn);
+        const config = {};
+        names.forEach((name) => {
+          const value = dependsOn[name];
+          if (value && typeof value === "object" && !Array.isArray(value)) {
+            config[name] = { ...value };
+          }
+        });
+        return { names, config };
+      }
+      return { names: [], config: {} };
     },
     applyImportedServices(doc) {
       const services = doc?.services || {};
@@ -804,23 +909,42 @@ export default {
         service.containerName = containerName;
         service.serviceName = serviceName || containerName;
         service.color = colorPalette[index % colorPalette.length];
-        service.restart = svc.restart || "no";
-        service.networkMode = svc.network_mode || "ports";
+        service.restart = this.normalizeRestartValue(svc.restart);
+        const importedNetworkMode = typeof svc.network_mode === "string" ? svc.network_mode : "";
+        if (importedNetworkMode === "bridge" || importedNetworkMode === "host") {
+          service.networkMode = importedNetworkMode;
+          service.rawNetworkMode = "";
+        } else if (importedNetworkMode) {
+          service.networkMode = "ports";
+          service.rawNetworkMode = importedNetworkMode;
+        } else {
+          service.networkMode = "ports";
+          service.rawNetworkMode = "";
+        }
+        service.rawBuild = svc.build !== undefined ? svc.build : null;
         service.ports = Array.isArray(svc.ports)
-          ? svc.ports.map((p) => this.parsePortMapping(String(p)))
+          ? svc.ports.map((p) => this.parsePortEntry(p))
           : [];
         service.volumes = Array.isArray(svc.volumes)
-          ? svc.volumes.map((v) => this.parseVolumeMapping(String(v), containerName))
+          ? svc.volumes.map((v) => this.parseVolumeEntry(v, containerName))
           : [];
         const envList = [];
         if (Array.isArray(svc.environment)) {
           svc.environment.forEach((item) => {
-            const [key, value = ""] = String(item).split("=");
-            envList.push({ id: crypto.randomUUID(), key, value });
+            const raw = String(item);
+            const splitIndex = raw.indexOf("=");
+            const key = splitIndex >= 0 ? raw.slice(0, splitIndex) : raw;
+            const value = splitIndex >= 0 ? raw.slice(splitIndex + 1) : "";
+            envList.push({ id: crypto.randomUUID(), key, value, isNull: false });
           });
         } else if (svc.environment && typeof svc.environment === "object") {
           Object.entries(svc.environment).forEach(([key, value]) => {
-            envList.push({ id: crypto.randomUUID(), key, value: String(value) });
+            envList.push({
+              id: crypto.randomUUID(),
+              key,
+              value: value === null || value === undefined ? "" : String(value),
+              isNull: value === null || value === undefined,
+            });
           });
         }
         service.env = envList;
@@ -830,19 +954,87 @@ export default {
         }
         service.privileged = Boolean(svc.privileged);
         if (typeof svc.user === "string" && svc.user.includes(":")) {
-          const [uid, gid] = svc.user.split(":");
-          service.userId = Number(uid) || 0;
-          service.groupId = Number(gid) || 0;
+          const [uidRaw = "", gidRaw = ""] = svc.user.split(":");
+          const uid = Number(uidRaw);
+          const gid = Number(gidRaw);
+          service.userId = Number.isFinite(uid) ? uid : null;
+          service.groupId = gidRaw === "" ? null : Number.isFinite(gid) ? gid : null;
+        } else if (typeof svc.user === "string" && /^\d+$/.test(svc.user.trim())) {
+          service.userId = Number(svc.user.trim());
+          service.groupId = null;
         } else if (typeof svc.user === "number") {
           service.userId = svc.user;
-          service.groupId = 0;
+          service.groupId = null;
         }
-        service.command = svc.command ? String(svc.command) : "";
+        if (Array.isArray(svc.command)) {
+          service.commandList = svc.command.map((item) => String(item));
+          service.command = "";
+        } else {
+          service.command = svc.command ? String(svc.command) : "";
+          service.commandList = [];
+        }
         const dependsOn = this.parseDependsOn(svc.depends_on);
-        service.dependsOn = dependsOn;
+        service.dependsOn = dependsOn.names;
+        service.dependsOnConfig = dependsOn.config;
         nextServices.push(service);
       });
       this.services = nextServices;
+    },
+    formatYamlScalar(value) {
+      if (value === null || value === undefined) return "null";
+      if (typeof value === "number" || typeof value === "boolean") return String(value);
+      return this.formatYamlDoubleQuoted(String(value));
+    },
+    formatYamlDoubleQuoted(value) {
+      return JSON.stringify(String(value ?? ""));
+    },
+    formatYamlKey(value) {
+      return this.formatYamlDoubleQuoted(String(value ?? ""));
+    },
+    normalizeRestartValue(value) {
+      if (typeof value !== "string") return "";
+      const text = value.trim();
+      if (!text) return "";
+      if (text === "no" || text === "always" || text === "unless-stopped") return text;
+      if (/^on-failure(?::\d+)?$/.test(text)) return text;
+      return "";
+    },
+    appendYamlNode(lines, indent, value) {
+      const pad = " ".repeat(indent);
+      if (Array.isArray(value)) {
+        if (!value.length) {
+          lines.push(`${pad}[]`);
+          return;
+        }
+        value.forEach((item) => {
+          if (item !== null && typeof item === "object") {
+            lines.push(`${pad}-`);
+            this.appendYamlNode(lines, indent + 2, item);
+          } else {
+            lines.push(`${pad}- ${this.formatYamlScalar(item)}`);
+          }
+        });
+        return;
+      }
+      if (value !== null && typeof value === "object") {
+        const entries = Object.entries(value);
+        if (!entries.length) {
+          lines.push(`${pad}{}`);
+          return;
+        }
+        entries.forEach(([key, nested]) => {
+          if (nested !== null && typeof nested === "object") {
+            lines.push(`${pad}${this.formatYamlKey(key)}:`);
+            this.appendYamlNode(lines, indent + 2, nested);
+          } else if (nested === null || nested === undefined) {
+            lines.push(`${pad}${this.formatYamlKey(key)}:`);
+          } else {
+            lines.push(`${pad}${this.formatYamlKey(key)}: ${this.formatYamlScalar(nested)}`);
+          }
+        });
+        return;
+      }
+      lines.push(`${pad}${this.formatYamlScalar(value)}`);
     },
     importFromYamlText() {
       if (!this.composeYamlText.trim()) return;
@@ -881,14 +1073,24 @@ export default {
     },
     buildHealthcheck(service) {
       const health = service.health;
-      if (health.type === "none") return null;
+      if (health.type === "none") {
+        if (health.disable) {
+          return {
+            disable: true,
+            test: ["NONE"],
+          };
+        }
+        return null;
+      }
       let cmd = health.cmd;
       if (health.type === "http") {
         cmd = `curl -f http://localhost:${health.port} || exit 1`;
       } else if (health.type === "tcp") {
         cmd = `nc -z localhost ${health.port} || exit 1`;
       }
+      if (!String(cmd || "").trim()) return null;
       return {
+        disable: false,
         test: ["CMD-SHELL", cmd],
         interval: health.interval || "30s",
         timeout: health.timeout || "5s",
@@ -905,46 +1107,70 @@ export default {
 
       this.services.forEach((service) => {
         const name = service.serviceName || service.containerName || imageBaseName(service.image);
-        lines.push(`  ${name}:`);
-        lines.push(`    image: ${service.image}`);
-        if (service.containerName) {
-          lines.push(`    container_name: ${service.containerName}`);
+        lines.push(`  ${this.formatYamlKey(name)}:`);
+        if (service.image) {
+          lines.push(`    image: ${this.formatYamlDoubleQuoted(service.image)}`);
         }
-        if (service.restart) {
-          lines.push(`    restart: ${service.restart}`);
+        if (service.rawBuild !== null && service.rawBuild !== undefined) {
+          if (service.rawBuild !== null && typeof service.rawBuild === "object") {
+            lines.push("    build:");
+            this.appendYamlNode(lines, 6, service.rawBuild);
+          } else {
+            lines.push(`    build: ${this.formatYamlScalar(service.rawBuild)}`);
+          }
+        }
+        if (service.containerName) {
+          lines.push(`    container_name: ${this.formatYamlDoubleQuoted(service.containerName)}`);
+        }
+        const restartValue = this.normalizeRestartValue(service.restart);
+        if (restartValue) {
+          lines.push(`    restart: ${restartValue}`);
         }
         if (service.networkMode === "bridge") {
           lines.push("    network_mode: bridge");
         } else if (service.networkMode === "host") {
           lines.push("    network_mode: host");
+        } else if (service.rawNetworkMode) {
+          lines.push(`    network_mode: ${this.formatYamlScalar(service.rawNetworkMode)}`);
         }
-        if (service.networkMode !== "host" && service.ports.length) {
-          lines.push("    ports:");
-          service.ports.forEach((port) => {
-            if (!port.host || !port.container) return;
-            const suffix = port.protocol && port.protocol !== "tcp" ? `/${port.protocol}` : "";
-            const rawHostIp = port.hostIp || "";
-            const hostIp =
-              rawHostIp && rawHostIp.includes(":") && !rawHostIp.startsWith("[")
-                ? `[${rawHostIp}]`
-                : rawHostIp;
-            const prefix = hostIp ? `${hostIp}:` : "";
-            lines.push(`      - "${prefix}${port.host}:${port.container}${suffix}"`);
-          });
+        if (service.networkMode === "ports" && !service.rawNetworkMode && service.ports.length) {
+          const validPorts = service.ports.filter((port) => port.container);
+          if (validPorts.length) {
+            lines.push("    ports:");
+            validPorts.forEach((port) => {
+              const suffix = port.protocol && port.protocol !== "tcp" ? `/${port.protocol}` : "";
+              const rawHostIp = port.hostIp || "";
+              const hostIp =
+                rawHostIp && rawHostIp.includes(":") && !rawHostIp.startsWith("[")
+                  ? `[${rawHostIp}]`
+                  : rawHostIp;
+              const hasHostPort = port.host !== "" && port.host !== null && port.host !== undefined;
+              const hostPart = hasHostPort ? `${port.host}:` : "";
+              const ipPart = hasHostPort && hostIp ? `${hostIp}:` : "";
+              lines.push(`      - "${ipPart}${hostPart}${port.container}${suffix}"`);
+            });
+          }
         }
         if (service.volumes.length) {
-          lines.push("    volumes:");
-          service.volumes.forEach((vol) => {
-            if (!vol.source || !vol.target) return;
-            const mode = vol.readOnly ? ":ro" : "";
-            if (vol.kind === "volume") {
-              volumeNames.add(vol.source);
-              lines.push(`      - "${vol.source}:${vol.target}${mode}"`);
-            } else {
-              const source = normalizeWindowsPath(vol.source);
-              lines.push(`      - "${source}:${vol.target}${mode}"`);
-            }
-          });
+          const validVolumes = service.volumes.filter((vol) => vol.target);
+          if (validVolumes.length) {
+            lines.push("    volumes:");
+            validVolumes.forEach((vol) => {
+              const mode = vol.readOnly ? ":ro" : "";
+              if (vol.kind === "volume") {
+                if (vol.source) {
+                  volumeNames.add(vol.source);
+                  lines.push(`      - "${vol.source}:${vol.target}${mode}"`);
+                } else {
+                  lines.push(`      - "${vol.target}${mode}"`);
+                }
+              } else {
+                const source = normalizeWindowsPath(vol.source);
+                if (!source) return;
+                lines.push(`      - "${source}:${vol.target}${mode}"`);
+              }
+            });
+          }
         }
         const deps = Array.isArray(service.dependsOn) ? service.dependsOn : [];
         if (deps.length) {
@@ -952,41 +1178,88 @@ export default {
             this.services.some((svc) => (svc.serviceName || svc.containerName) === dep)
           );
           if (validDeps.length) {
+            const depConfig =
+              service.dependsOnConfig && typeof service.dependsOnConfig === "object"
+                ? service.dependsOnConfig
+                : {};
+            const hasObjectDepends = validDeps.some((dep) => {
+              const cfg = depConfig[dep];
+              return cfg && typeof cfg === "object" && !Array.isArray(cfg) && Object.keys(cfg).length;
+            });
             lines.push("    depends_on:");
-            validDeps.forEach((dep) => lines.push(`      - ${dep}`));
+            if (hasObjectDepends) {
+              validDeps.forEach((dep) => {
+                const cfg = depConfig[dep];
+                if (cfg && typeof cfg === "object" && !Array.isArray(cfg) && Object.keys(cfg).length) {
+                  lines.push(`      ${this.formatYamlKey(dep)}:`);
+                  Object.entries(cfg).forEach(([key, value]) => {
+                    lines.push(`        ${this.formatYamlKey(key)}: ${this.formatYamlScalar(value)}`);
+                  });
+                } else {
+                  lines.push(`      ${this.formatYamlKey(dep)}: {}`);
+                }
+              });
+            } else {
+              validDeps.forEach((dep) => lines.push(`      - ${this.formatYamlDoubleQuoted(dep)}`));
+            }
           }
         }
         if (service.command && service.command.trim()) {
-          lines.push(`    command: ${service.command.trim()}`);
+          lines.push(`    command: ${this.formatYamlDoubleQuoted(service.command.trim())}`);
+        } else if (Array.isArray(service.commandList) && service.commandList.length) {
+          const list = service.commandList.map((item) => this.formatYamlDoubleQuoted(item)).join(", ");
+          lines.push(`    command: [${list}]`);
         }
         if (service.privileged) {
           lines.push("    privileged: true");
         }
         if (Number.isFinite(service.userId) && Number.isFinite(service.groupId)) {
           lines.push(`    user: "${service.userId}:${service.groupId}"`);
+        } else if (Number.isFinite(service.userId)) {
+          lines.push(`    user: "${service.userId}"`);
         }
         const envPairs = service.env
-          .map((env) => `${env.key}=${env.value}`)
-          .filter((pair) => pair !== "=" && !pair.startsWith("=") && !pair.endsWith("="));
+          .filter((env) => env.key && !String(env.key).startsWith("="));
         if (envPairs.length) {
+          const hasNullEnv = envPairs.some((env) => env.isNull);
           lines.push("    environment:");
-          envPairs.forEach((pair) => lines.push(`      - "${pair}"`));
+          if (hasNullEnv) {
+            envPairs.forEach((env) => {
+              if (env.isNull) {
+                lines.push(`      ${this.formatYamlKey(env.key)}:`);
+              } else {
+                lines.push(`      ${this.formatYamlKey(env.key)}: ${this.formatYamlDoubleQuoted(env.value)}`);
+              }
+            });
+          } else {
+            envPairs
+              .map((env) => `${env.key}=${env.value}`)
+              .forEach((pair) => lines.push(`      - ${this.formatYamlDoubleQuoted(pair)}`));
+          }
         }
         const healthcheck = this.buildHealthcheck(service);
         if (healthcheck) {
           lines.push("    healthcheck:");
-          lines.push(`      test: ["${healthcheck.test[0]}", "${healthcheck.test[1]}"]`);
-          lines.push(`      interval: ${healthcheck.interval}`);
-          lines.push(`      timeout: ${healthcheck.timeout}`);
-          lines.push(`      retries: ${healthcheck.retries}`);
-          lines.push(`      start_period: ${healthcheck.start_period}`);
+          if (healthcheck.disable) {
+            lines.push('      test: ["NONE"]');
+          } else {
+            lines.push(
+              `      test: [${this.formatYamlDoubleQuoted(healthcheck.test[0])}, ${this.formatYamlDoubleQuoted(
+                healthcheck.test[1]
+              )}]`
+            );
+            lines.push(`      interval: ${healthcheck.interval}`);
+            lines.push(`      timeout: ${healthcheck.timeout}`);
+            lines.push(`      retries: ${healthcheck.retries}`);
+            lines.push(`      start_period: ${healthcheck.start_period}`);
+          }
         }
       });
 
       if (volumeNames.size) {
         lines.push("volumes:");
         volumeNames.forEach((name) => {
-          lines.push(`  ${name}: {}`);
+          lines.push(`  ${this.formatYamlKey(name)}: {}`);
         });
       }
 
