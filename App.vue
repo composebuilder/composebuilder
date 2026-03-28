@@ -445,6 +445,7 @@ const newService = (image) => {
     ],
     env: [],
     dependsOn: [],
+    dependsOnConfig: {},
     command: "",
     health: {
       type: "none",
@@ -618,8 +619,12 @@ export default {
       );
     },
     toggleDependsOn(service, name) {
+      if (!service.dependsOnConfig || typeof service.dependsOnConfig !== "object") {
+        service.dependsOnConfig = {};
+      }
       if (service.dependsOn.includes(name)) {
         service.dependsOn = service.dependsOn.filter((item) => item !== name);
+        delete service.dependsOnConfig[name];
       } else {
         service.dependsOn = [...service.dependsOn, name];
       }
@@ -766,6 +771,17 @@ export default {
       if (!health || !health.test) return null;
       let cmd = "";
       if (Array.isArray(health.test)) {
+        if (String(health.test[0] || "").toUpperCase() === "NONE") {
+          return {
+            type: "none",
+            port: 80,
+            cmd: "",
+            interval: health.interval || "30s",
+            timeout: health.timeout || "5s",
+            retries: Number(health.retries) || 3,
+            startPeriod: health.start_period || "10s",
+          };
+        }
         if (health.test[0] === "CMD-SHELL") {
           cmd = health.test[1] || "";
         } else {
@@ -788,9 +804,24 @@ export default {
       };
     },
     parseDependsOn(dependsOn) {
-      if (Array.isArray(dependsOn)) return dependsOn;
-      if (dependsOn && typeof dependsOn === "object") return Object.keys(dependsOn);
-      return [];
+      if (Array.isArray(dependsOn)) {
+        return {
+          names: dependsOn.map((name) => String(name)),
+          config: {},
+        };
+      }
+      if (dependsOn && typeof dependsOn === "object") {
+        const names = Object.keys(dependsOn);
+        const config = {};
+        names.forEach((name) => {
+          const value = dependsOn[name];
+          if (value && typeof value === "object" && !Array.isArray(value)) {
+            config[name] = { ...value };
+          }
+        });
+        return { names, config };
+      }
+      return { names: [], config: {} };
     },
     applyImportedServices(doc) {
       const services = doc?.services || {};
@@ -815,7 +846,10 @@ export default {
         const envList = [];
         if (Array.isArray(svc.environment)) {
           svc.environment.forEach((item) => {
-            const [key, value = ""] = String(item).split("=");
+            const raw = String(item);
+            const splitIndex = raw.indexOf("=");
+            const key = splitIndex >= 0 ? raw.slice(0, splitIndex) : raw;
+            const value = splitIndex >= 0 ? raw.slice(splitIndex + 1) : "";
             envList.push({ id: crypto.randomUUID(), key, value });
           });
         } else if (svc.environment && typeof svc.environment === "object") {
@@ -839,10 +873,17 @@ export default {
         }
         service.command = svc.command ? String(svc.command) : "";
         const dependsOn = this.parseDependsOn(svc.depends_on);
-        service.dependsOn = dependsOn;
+        service.dependsOn = dependsOn.names;
+        service.dependsOnConfig = dependsOn.config;
         nextServices.push(service);
       });
       this.services = nextServices;
+    },
+    formatYamlScalar(value) {
+      if (typeof value === "number" || typeof value === "boolean") return String(value);
+      const text = String(value ?? "");
+      if (/^[A-Za-z0-9_.-]+$/.test(text)) return text;
+      return `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
     },
     importFromYamlText() {
       if (!this.composeYamlText.trim()) return;
@@ -919,32 +960,36 @@ export default {
           lines.push("    network_mode: host");
         }
         if (service.networkMode !== "host" && service.ports.length) {
-          lines.push("    ports:");
-          service.ports.forEach((port) => {
-            if (!port.host || !port.container) return;
-            const suffix = port.protocol && port.protocol !== "tcp" ? `/${port.protocol}` : "";
-            const rawHostIp = port.hostIp || "";
-            const hostIp =
-              rawHostIp && rawHostIp.includes(":") && !rawHostIp.startsWith("[")
-                ? `[${rawHostIp}]`
-                : rawHostIp;
-            const prefix = hostIp ? `${hostIp}:` : "";
-            lines.push(`      - "${prefix}${port.host}:${port.container}${suffix}"`);
-          });
+          const validPorts = service.ports.filter((port) => port.host && port.container);
+          if (validPorts.length) {
+            lines.push("    ports:");
+            validPorts.forEach((port) => {
+              const suffix = port.protocol && port.protocol !== "tcp" ? `/${port.protocol}` : "";
+              const rawHostIp = port.hostIp || "";
+              const hostIp =
+                rawHostIp && rawHostIp.includes(":") && !rawHostIp.startsWith("[")
+                  ? `[${rawHostIp}]`
+                  : rawHostIp;
+              const prefix = hostIp ? `${hostIp}:` : "";
+              lines.push(`      - "${prefix}${port.host}:${port.container}${suffix}"`);
+            });
+          }
         }
         if (service.volumes.length) {
-          lines.push("    volumes:");
-          service.volumes.forEach((vol) => {
-            if (!vol.source || !vol.target) return;
-            const mode = vol.readOnly ? ":ro" : "";
-            if (vol.kind === "volume") {
-              volumeNames.add(vol.source);
-              lines.push(`      - "${vol.source}:${vol.target}${mode}"`);
-            } else {
-              const source = normalizeWindowsPath(vol.source);
-              lines.push(`      - "${source}:${vol.target}${mode}"`);
-            }
-          });
+          const validVolumes = service.volumes.filter((vol) => vol.source && vol.target);
+          if (validVolumes.length) {
+            lines.push("    volumes:");
+            validVolumes.forEach((vol) => {
+              const mode = vol.readOnly ? ":ro" : "";
+              if (vol.kind === "volume") {
+                volumeNames.add(vol.source);
+                lines.push(`      - "${vol.source}:${vol.target}${mode}"`);
+              } else {
+                const source = normalizeWindowsPath(vol.source);
+                lines.push(`      - "${source}:${vol.target}${mode}"`);
+              }
+            });
+          }
         }
         const deps = Array.isArray(service.dependsOn) ? service.dependsOn : [];
         if (deps.length) {
@@ -952,8 +997,30 @@ export default {
             this.services.some((svc) => (svc.serviceName || svc.containerName) === dep)
           );
           if (validDeps.length) {
+            const depConfig =
+              service.dependsOnConfig && typeof service.dependsOnConfig === "object"
+                ? service.dependsOnConfig
+                : {};
+            const hasObjectDepends = validDeps.some((dep) => {
+              const cfg = depConfig[dep];
+              return cfg && typeof cfg === "object" && !Array.isArray(cfg) && Object.keys(cfg).length;
+            });
             lines.push("    depends_on:");
-            validDeps.forEach((dep) => lines.push(`      - ${dep}`));
+            if (hasObjectDepends) {
+              validDeps.forEach((dep) => {
+                const cfg = depConfig[dep];
+                if (cfg && typeof cfg === "object" && !Array.isArray(cfg) && Object.keys(cfg).length) {
+                  lines.push(`      ${dep}:`);
+                  Object.entries(cfg).forEach(([key, value]) => {
+                    lines.push(`        ${key}: ${this.formatYamlScalar(value)}`);
+                  });
+                } else {
+                  lines.push(`      ${dep}: {}`);
+                }
+              });
+            } else {
+              validDeps.forEach((dep) => lines.push(`      - ${dep}`));
+            }
           }
         }
         if (service.command && service.command.trim()) {
