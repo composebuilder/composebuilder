@@ -104,7 +104,7 @@
               </div>
               <div class="field">
                 <label>网络模式</label>
-                <select v-model="service.networkMode">
+                <select v-model="service.networkMode" @change="onNetworkModeChange(service)">
                   <option value="ports">端口映射</option>
                   <option value="bridge">网桥 (bridge)</option>
                   <option value="host">宿主机 (host)</option>
@@ -224,7 +224,7 @@
                 </div>
                 <div class="field">
                   <label>值</label>
-                  <input v-model.trim="env.value" />
+                  <input v-model.trim="env.value" @input="clearEnvNull(env)" />
                 </div>
                 <button class="button button--ghost" @click="removeEnv(service, idx)">删除</button>
               </div>
@@ -254,7 +254,8 @@
               </div>
               <div class="field">
                 <label>command</label>
-                <input v-model.trim="service.command" placeholder="例如：nginx -g 'daemon off;'" />
+                <input v-model.trim="service.command" @input="onCommandInput(service)"
+                  placeholder="例如：nginx -g 'daemon off;'" />
               </div>
               <p class="hint">command 可为空，将不写入配置。</p>
             </div>
@@ -434,6 +435,7 @@ const newService = (image) => {
     color: "",
     restart: "unless-stopped",
     networkMode: "ports",
+    rawNetworkMode: "",
     ports: [
       {
         id: crypto.randomUUID(),
@@ -456,6 +458,7 @@ const newService = (image) => {
     dependsOnConfig: {},
     command: "",
     commandList: [],
+    rawBuild: null,
     health: {
       type: "none",
       port: 80,
@@ -686,10 +689,20 @@ export default {
         id: crypto.randomUUID(),
         key: "",
         value: "",
+        isNull: false,
       });
     },
     removeEnv(service, idx) {
       service.env.splice(idx, 1);
+    },
+    clearEnvNull(env) {
+      env.isNull = false;
+    },
+    onNetworkModeChange(service) {
+      service.rawNetworkMode = "";
+    },
+    onCommandInput(service) {
+      service.commandList = [];
     },
     parsePortMapping(mapping) {
       const [mappingPart, protocolPart] = mapping.split("/");
@@ -891,7 +904,18 @@ export default {
         service.serviceName = serviceName || containerName;
         service.color = colorPalette[index % colorPalette.length];
         service.restart = this.normalizeRestartValue(svc.restart);
-        service.networkMode = svc.network_mode || "ports";
+        const importedNetworkMode = typeof svc.network_mode === "string" ? svc.network_mode : "";
+        if (importedNetworkMode === "bridge" || importedNetworkMode === "host") {
+          service.networkMode = importedNetworkMode;
+          service.rawNetworkMode = "";
+        } else if (importedNetworkMode) {
+          service.networkMode = "ports";
+          service.rawNetworkMode = importedNetworkMode;
+        } else {
+          service.networkMode = "ports";
+          service.rawNetworkMode = "";
+        }
+        service.rawBuild = svc.build !== undefined ? svc.build : null;
         service.ports = Array.isArray(svc.ports)
           ? svc.ports.map((p) => this.parsePortEntry(p))
           : [];
@@ -905,7 +929,7 @@ export default {
             const splitIndex = raw.indexOf("=");
             const key = splitIndex >= 0 ? raw.slice(0, splitIndex) : raw;
             const value = splitIndex >= 0 ? raw.slice(splitIndex + 1) : "";
-            envList.push({ id: crypto.randomUUID(), key, value });
+            envList.push({ id: crypto.randomUUID(), key, value, isNull: false });
           });
         } else if (svc.environment && typeof svc.environment === "object") {
           Object.entries(svc.environment).forEach(([key, value]) => {
@@ -913,6 +937,7 @@ export default {
               id: crypto.randomUUID(),
               key,
               value: value === null || value === undefined ? "" : String(value),
+              isNull: value === null || value === undefined,
             });
           });
         }
@@ -969,6 +994,41 @@ export default {
       if (text === "no" || text === "always" || text === "unless-stopped") return text;
       if (/^on-failure(?::\d+)?$/.test(text)) return text;
       return "";
+    },
+    appendYamlNode(lines, indent, value) {
+      const pad = " ".repeat(indent);
+      if (Array.isArray(value)) {
+        if (!value.length) {
+          lines.push(`${pad}[]`);
+          return;
+        }
+        value.forEach((item) => {
+          if (item !== null && typeof item === "object") {
+            lines.push(`${pad}-`);
+            this.appendYamlNode(lines, indent + 2, item);
+          } else {
+            lines.push(`${pad}- ${this.formatYamlScalar(item)}`);
+          }
+        });
+        return;
+      }
+      if (value !== null && typeof value === "object") {
+        const entries = Object.entries(value);
+        if (!entries.length) {
+          lines.push(`${pad}{}`);
+          return;
+        }
+        entries.forEach(([key, nested]) => {
+          if (nested !== null && typeof nested === "object") {
+            lines.push(`${pad}${this.formatYamlKey(key)}:`);
+            this.appendYamlNode(lines, indent + 2, nested);
+          } else {
+            lines.push(`${pad}${this.formatYamlKey(key)}: ${this.formatYamlScalar(nested)}`);
+          }
+        });
+        return;
+      }
+      lines.push(`${pad}${this.formatYamlScalar(value)}`);
     },
     importFromYamlText() {
       if (!this.composeYamlText.trim()) return;
@@ -1033,7 +1093,17 @@ export default {
       this.services.forEach((service) => {
         const name = service.serviceName || service.containerName || imageBaseName(service.image);
         lines.push(`  ${this.formatYamlKey(name)}:`);
-        lines.push(`    image: ${this.formatYamlDoubleQuoted(service.image)}`);
+        if (service.image) {
+          lines.push(`    image: ${this.formatYamlDoubleQuoted(service.image)}`);
+        }
+        if (service.rawBuild !== null && service.rawBuild !== undefined) {
+          if (service.rawBuild !== null && typeof service.rawBuild === "object") {
+            lines.push("    build:");
+            this.appendYamlNode(lines, 6, service.rawBuild);
+          } else {
+            lines.push(`    build: ${this.formatYamlScalar(service.rawBuild)}`);
+          }
+        }
         if (service.containerName) {
           lines.push(`    container_name: ${this.formatYamlDoubleQuoted(service.containerName)}`);
         }
@@ -1045,8 +1115,10 @@ export default {
           lines.push("    network_mode: bridge");
         } else if (service.networkMode === "host") {
           lines.push("    network_mode: host");
+        } else if (service.rawNetworkMode) {
+          lines.push(`    network_mode: ${this.formatYamlScalar(service.rawNetworkMode)}`);
         }
-        if (service.networkMode !== "host" && service.ports.length) {
+        if (service.networkMode === "ports" && !service.rawNetworkMode && service.ports.length) {
           const validPorts = service.ports.filter((port) => port.container);
           if (validPorts.length) {
             lines.push("    ports:");
@@ -1130,11 +1202,23 @@ export default {
           lines.push(`    user: "${service.userId}:${service.groupId}"`);
         }
         const envPairs = service.env
-          .map((env) => `${env.key}=${env.value}`)
-          .filter((pair) => pair !== "=" && !pair.startsWith("="));
+          .filter((env) => env.key && !String(env.key).startsWith("="));
         if (envPairs.length) {
+          const hasNullEnv = envPairs.some((env) => env.isNull);
           lines.push("    environment:");
-          envPairs.forEach((pair) => lines.push(`      - ${this.formatYamlDoubleQuoted(pair)}`));
+          if (hasNullEnv) {
+            envPairs.forEach((env) => {
+              if (env.isNull) {
+                lines.push(`      ${this.formatYamlKey(env.key)}:`);
+              } else {
+                lines.push(`      ${this.formatYamlKey(env.key)}: ${this.formatYamlDoubleQuoted(env.value)}`);
+              }
+            });
+          } else {
+            envPairs
+              .map((env) => `${env.key}=${env.value}`)
+              .forEach((pair) => lines.push(`      - ${this.formatYamlDoubleQuoted(pair)}`));
+          }
         }
         const healthcheck = this.buildHealthcheck(service);
         if (healthcheck) {
