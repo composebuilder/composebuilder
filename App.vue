@@ -706,10 +706,6 @@ export default {
       service.commandList = [];
     },
     onHealthTypeChange(service) {
-      if (service.health.type !== "none") {
-        service.health.disable = false;
-        return;
-      }
       service.health.disable = false;
     },
     parsePortMapping(mapping) {
@@ -993,9 +989,7 @@ export default {
       return JSON.stringify(String(value ?? ""));
     },
     formatYamlKey(value) {
-      const text = String(value ?? "");
-      if (/^[A-Za-z0-9_.-]+$/.test(text)) return text;
-      return this.formatYamlDoubleQuoted(text);
+      return this.formatYamlDoubleQuoted(String(value ?? ""));
     },
     normalizeRestartValue(value) {
       if (typeof value !== "string") return "";
