@@ -267,7 +267,7 @@
               <div class="grid">
                 <div class="field">
                   <label>类型</label>
-                  <select v-model="service.health.type">
+                  <select v-model="service.health.type" @change="onHealthTypeChange(service)">
                     <option value="none">不启用</option>
                     <option value="http">HTTP</option>
                     <option value="tcp">TCP</option>
@@ -461,6 +461,7 @@ const newService = (image) => {
     rawBuild: null,
     health: {
       type: "none",
+      disable: false,
       port: 80,
       cmd: "",
       interval: "30s",
@@ -704,6 +705,13 @@ export default {
     onCommandInput(service) {
       service.commandList = [];
     },
+    onHealthTypeChange(service) {
+      if (service.health.type !== "none") {
+        service.health.disable = false;
+        return;
+      }
+      service.health.disable = false;
+    },
     parsePortMapping(mapping) {
       const [mappingPart, protocolPart] = mapping.split("/");
       const protocol = protocolPart || "tcp";
@@ -842,6 +850,7 @@ export default {
         if (String(health.test[0] || "").toUpperCase() === "NONE") {
           return {
             type: "none",
+            disable: true,
             port: 80,
             cmd: "",
             interval: health.interval || "30s",
@@ -863,6 +872,7 @@ export default {
       const type = httpMatch ? "http" : tcpMatch ? "tcp" : "cmd";
       return {
         type,
+        disable: false,
         port: Number(httpMatch?.[1] || tcpMatch?.[1] || 80),
         cmd,
         interval: health.interval || "30s",
@@ -948,15 +958,17 @@ export default {
         }
         service.privileged = Boolean(svc.privileged);
         if (typeof svc.user === "string" && svc.user.includes(":")) {
-          const [uid, gid] = svc.user.split(":");
-          service.userId = Number(uid) || 0;
-          service.groupId = Number(gid) || 0;
+          const [uidRaw = "", gidRaw = ""] = svc.user.split(":");
+          const uid = Number(uidRaw);
+          const gid = Number(gidRaw);
+          service.userId = Number.isFinite(uid) ? uid : null;
+          service.groupId = gidRaw === "" ? null : Number.isFinite(gid) ? gid : null;
         } else if (typeof svc.user === "string" && /^\d+$/.test(svc.user.trim())) {
           service.userId = Number(svc.user.trim());
-          service.groupId = 0;
+          service.groupId = null;
         } else if (typeof svc.user === "number") {
           service.userId = svc.user;
-          service.groupId = 0;
+          service.groupId = null;
         }
         if (Array.isArray(svc.command)) {
           service.commandList = svc.command.map((item) => String(item));
@@ -973,14 +985,12 @@ export default {
       this.services = nextServices;
     },
     formatYamlScalar(value) {
+      if (value === null || value === undefined) return "null";
       if (typeof value === "number" || typeof value === "boolean") return String(value);
-      const text = String(value ?? "");
-      if (/^[A-Za-z0-9_.-]+$/.test(text)) return text;
-      return `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+      return this.formatYamlDoubleQuoted(String(value));
     },
     formatYamlDoubleQuoted(value) {
-      const text = String(value ?? "");
-      return `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+      return JSON.stringify(String(value ?? ""));
     },
     formatYamlKey(value) {
       const text = String(value ?? "");
@@ -1022,6 +1032,8 @@ export default {
           if (nested !== null && typeof nested === "object") {
             lines.push(`${pad}${this.formatYamlKey(key)}:`);
             this.appendYamlNode(lines, indent + 2, nested);
+          } else if (nested === null || nested === undefined) {
+            lines.push(`${pad}${this.formatYamlKey(key)}:`);
           } else {
             lines.push(`${pad}${this.formatYamlKey(key)}: ${this.formatYamlScalar(nested)}`);
           }
@@ -1067,7 +1079,15 @@ export default {
     },
     buildHealthcheck(service) {
       const health = service.health;
-      if (health.type === "none") return null;
+      if (health.type === "none") {
+        if (health.disable) {
+          return {
+            disable: true,
+            test: ["NONE"],
+          };
+        }
+        return null;
+      }
       let cmd = health.cmd;
       if (health.type === "http") {
         cmd = `curl -f http://localhost:${health.port} || exit 1`;
@@ -1076,6 +1096,7 @@ export default {
       }
       if (!String(cmd || "").trim()) return null;
       return {
+        disable: false,
         test: ["CMD-SHELL", cmd],
         interval: health.interval || "30s",
         timeout: health.timeout || "5s",
@@ -1200,6 +1221,8 @@ export default {
         }
         if (Number.isFinite(service.userId) && Number.isFinite(service.groupId)) {
           lines.push(`    user: "${service.userId}:${service.groupId}"`);
+        } else if (Number.isFinite(service.userId)) {
+          lines.push(`    user: "${service.userId}"`);
         }
         const envPairs = service.env
           .filter((env) => env.key && !String(env.key).startsWith("="));
@@ -1223,15 +1246,19 @@ export default {
         const healthcheck = this.buildHealthcheck(service);
         if (healthcheck) {
           lines.push("    healthcheck:");
-          lines.push(
-            `      test: [${this.formatYamlDoubleQuoted(healthcheck.test[0])}, ${this.formatYamlDoubleQuoted(
-              healthcheck.test[1]
-            )}]`
-          );
-          lines.push(`      interval: ${healthcheck.interval}`);
-          lines.push(`      timeout: ${healthcheck.timeout}`);
-          lines.push(`      retries: ${healthcheck.retries}`);
-          lines.push(`      start_period: ${healthcheck.start_period}`);
+          if (healthcheck.disable) {
+            lines.push('      test: ["NONE"]');
+          } else {
+            lines.push(
+              `      test: [${this.formatYamlDoubleQuoted(healthcheck.test[0])}, ${this.formatYamlDoubleQuoted(
+                healthcheck.test[1]
+              )}]`
+            );
+            lines.push(`      interval: ${healthcheck.interval}`);
+            lines.push(`      timeout: ${healthcheck.timeout}`);
+            lines.push(`      retries: ${healthcheck.retries}`);
+            lines.push(`      start_period: ${healthcheck.start_period}`);
+          }
         }
       });
 
