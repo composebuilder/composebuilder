@@ -1,7 +1,7 @@
 services:
   composebuilder:
-    image: registry.cn-hangzhou.aliyuncs.com/blazesnow/composebuilder:latest
+    image: composebuilder/composebuilder:latest
     container_name: composebuilder
-    restart: always
+    restart: no
     ports:
-      - 3000:80
+      - 80:80
