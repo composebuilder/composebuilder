@@ -20,11 +20,49 @@ export default {
 </script>
 
 <style scoped>
-.editor-panel { display: grid; align-content: center; min-height: 0; text-align: left; }
-.editor-panel h3 { margin: 0; font-family: var(--font-title); font-size: 1.1rem; }
-.image-scroll { max-width: 100%; overflow-x: auto; white-space: nowrap; scrollbar-width: thin; min-width: 0; }
-.image-scroll--auto { overflow: hidden; position: relative; }
-.image-scroll--auto span { display: inline-block; padding-right: 32px; animation: active-marquee 10s linear infinite; }
-.image-scroll--auto:hover span { animation-play-state: paused; }
-@keyframes active-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.editor-panel {
+  display: grid;
+  align-content: center;
+  min-height: 0;
+  text-align: left;
+}
+
+.editor-panel h3 {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 1.1rem;
+}
+
+.image-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: thin;
+  min-width: 0;
+}
+
+.image-scroll--auto {
+  overflow: hidden;
+  position: relative;
+}
+
+.image-scroll--auto span {
+  display: inline-block;
+  padding-right: 32px;
+  animation: active-marquee 10s linear infinite;
+}
+
+.image-scroll--auto:hover span {
+  animation-play-state: paused;
+}
+
+@keyframes active-marquee {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
 </style>

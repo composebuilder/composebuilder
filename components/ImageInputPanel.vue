@@ -6,7 +6,8 @@
     </div>
     <div class="field">
       <label for="images">镜像名称</label>
-      <textarea id="images" :value="modelValue" @input="$emit('update:modelValue', $event.target.value)" placeholder="例如：nginx:latest, redis:7 或 mysql:8"></textarea>
+      <textarea id="images" :value="modelValue" @input="$emit('update:modelValue', $event.target.value)"
+        placeholder="例如：nginx:latest, redis:7 或 mysql:8"></textarea>
     </div>
     <p class="hint">需要导入现有配置时，请直接编辑 YAML 并点击刷新按钮。</p>
     <div class="actions">
