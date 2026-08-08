@@ -1,12 +1,9 @@
 name: Docker
 
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'tag'
-        required: true
-        default: 'v0.0.0.0'
+  push:
+    tags:
+    - 'v*'
 
 permissions:
   contents: write
@@ -19,16 +16,13 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v6
 
-    - name: Set up pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: 10
-
     - name: Set up Node.js
       uses: actions/setup-node@v6
       with:
-        node-version: 24
-        cache: pnpm
+        node-version: 26
+
+    - name: Set up pnpm
+      uses: pnpm/action-setup@v4
 
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
@@ -69,12 +63,12 @@ jobs:
         push: true
         tags: |
           registry.cn-hangzhou.aliyuncs.com/blazesnow/composebuilder:latest
-          registry.cn-hangzhou.aliyuncs.com/blazesnow/composebuilder:${{ inputs.tag }}
+          registry.cn-hangzhou.aliyuncs.com/blazesnow/composebuilder:${{ github.ref_name }}
           composebuilder/composebuilder:latest
-          composebuilder/composebuilder:${{ inputs.tag }}
+          composebuilder/composebuilder:${{ github.ref_name }}
           ghcr.io/composebuilder/composebuilder:latest
-          ghcr.io/composebuilder/composebuilder:${{ inputs.tag }}
+          ghcr.io/composebuilder/composebuilder:${{ github.ref_name }}
 
     - uses: ncipollo/release-action@v1
       with:
-        tag: ${{ inputs.tag }}
+        tag: ${{ github.ref_name }}
