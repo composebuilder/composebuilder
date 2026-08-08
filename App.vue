@@ -13,7 +13,7 @@
           <span>镜像：<a href="https://hub.docker.com/r/composebuilder/composebuilder" target="_blank"
               rel="noopener noreferrer">composebuilder/composebuilder</a></span>
           <span>前端架构：Vue 3</span>
-          <span>当前版本：v2026.5.4.0</span>
+          <span>当前版本：v2026.8.8.0</span>
         </div>
       </div>
       <div class="hero__art">
