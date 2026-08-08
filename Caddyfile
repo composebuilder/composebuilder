@@ -1,6 +1,14 @@
 :80 {
 	root * /app
 
+	@notFound not file
+	handle @notFound {
+		rewrite * /404.html
+		file_server {
+			status 404
+		}
+	}
+
 	file_server {
 		index index.html
 	}

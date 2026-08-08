@@ -1,20 +1,33 @@
-name: Docker
+name: Docker Latest
 
 on:
-  push:
-    tags:
-    - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag to publish as latest'
+        required: true
+        type: string
 
 permissions:
-  contents: write
   packages: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+    - name: Validate tag
+      env:
+        TAG: ${{ inputs.tag }}
+      run: |
+        if [[ ! "$TAG" =~ ^v.+$ ]]; then
+          echo "Tag must begin with v."
+          exit 1
+        fi
+
     - name: Checkout
       uses: actions/checkout@v7
+      with:
+        ref: ${{ inputs.tag }}
 
     - name: Set up Node.js
       uses: actions/setup-node@v7
@@ -62,10 +75,6 @@ jobs:
         context: .
         push: true
         tags: |
-          registry.cn-hangzhou.aliyuncs.com/blazesnow/composebuilder:${{ github.ref_name }}
-          composebuilder/composebuilder:${{ github.ref_name }}
-          ghcr.io/composebuilder/composebuilder:${{ github.ref_name }}
-
-    - uses: ncipollo/release-action@v1
-      with:
-        tag: ${{ github.ref_name }}
+          registry.cn-hangzhou.aliyuncs.com/blazesnow/composebuilder:latest
+          composebuilder/composebuilder:latest
+          ghcr.io/composebuilder/composebuilder:latest
