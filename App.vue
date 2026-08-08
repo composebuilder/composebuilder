@@ -13,7 +13,7 @@
           <span>镜像：<a href="https://hub.docker.com/r/composebuilder/composebuilder" target="_blank"
               rel="noopener noreferrer">composebuilder/composebuilder</a></span>
           <span>前端架构：Vue 3</span>
-          <span>当前版本：v2026.8.8.0</span>
+          <span>当前版本：v{{ packageVersion }}</span>
         </div>
       </div>
       <div class="hero__art">
@@ -364,6 +364,7 @@
 
 <script>
 import { load as yamlLoad } from "js-yaml";
+import { version as packageVersion } from "./package.json";
 
 const imageBaseName = (image) => {
   const imageText = String(image || "");
@@ -478,6 +479,7 @@ const newService = (image) => {
 export default {
   data() {
     return {
+      packageVersion,
       imageInput: "",
       services: [],
       composeYaml: "",
