@@ -1,9 +1,8 @@
 {
   "name": "composebuilder",
   "version": "2026.8.8.0",
-  "author": {
-    "name": "BlazeSnow",
-    "email": "composebuilder@blazesnow.com"
+  "repository": {
+    "url": "https://github.com/composebuilder/composebuilder.git"
   },
   "type": "module",
   "private": true,
