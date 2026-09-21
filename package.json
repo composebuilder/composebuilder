@@ -1,11 +1,9 @@
 {
   "name": "composebuilder",
   "version": "2026.8.8.0",
-  "author": {
-    "name": "BlazeSnow",
-    "email": "composebuilder@blazesnow.com"
+  "repository": {
+    "url": "https://github.com/composebuilder/composebuilder.git"
   },
-  "packageManager": "pnpm@11.20.0",
   "type": "module",
   "private": true,
   "main": "main.js",
@@ -18,11 +16,10 @@
     "@fontsource/fraunces": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
     "@fontsource/space-grotesk": "^5.3.0",
-    "@vitejs/plugin-vue": "^6.0.8",
-    "js-yaml": "^4.3.1",
+    "@vitejs/plugin-vue": "^6.0.9",
+    "js-yaml": "^4.3.2",
     "vite": "^7.3.6",
     "vite-plugin-vue-devtools": "^8.2.1",
-    "vue": "^3.5.41",
-    "wrangler": "^4.119.0"
+    "vue": "^3.5.43"
   }
 }
